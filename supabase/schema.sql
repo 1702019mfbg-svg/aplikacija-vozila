@@ -15,8 +15,8 @@
 --    zaključan 15 minuta.
 -- =====================================================================
 
-create extension if not exists pgcrypto with schema extensions;
 create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 create schema if not exists private;      -- nije dostupna preko API-ja
 revoke all on schema private from public, anon, authenticated;
 

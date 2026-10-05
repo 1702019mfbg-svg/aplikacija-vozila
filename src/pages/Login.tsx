@@ -85,11 +85,11 @@ export function Login({ onDriver }: Props) {
           </button>
         </div>
 
-        <div className="seg seg--light" role="tablist" aria-label="Ko se prijavljuje">
-          <button type="button" role="tab" aria-selected={who === 'owner'} aria-pressed={who === 'owner'} onClick={() => { setWho('owner'); setError(null) }}>
+        <div className="seg seg--light" role="group" aria-label="Ko se prijavljuje">
+          <button type="button" aria-pressed={who === 'owner'} onClick={() => { setWho('owner'); setError(null) }}>
             Vlasnik
           </button>
-          <button type="button" role="tab" aria-selected={who === 'driver'} aria-pressed={who === 'driver'} onClick={() => { setWho('driver'); setError(null) }}>
+          <button type="button" aria-pressed={who === 'driver'} onClick={() => { setWho('driver'); setError(null) }}>
             Vozač
           </button>
         </div>
