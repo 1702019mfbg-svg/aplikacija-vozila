@@ -1,0 +1,140 @@
+/*
+ * IZGLED: sve boje, fontovi i zaobljenja aplikacije su ovde, na jednom mestu.
+ * Raspored i ponašanje su u styles.css i ne zavise od izgleda.
+ *
+ * Osnova je izgled sajta farmerkop.rs (krem podloga, tamnozelena, tamna tinta, smeđe oznake,
+ * naslovi Bricolage Grotesque, tekst Work Sans, dugmad u obliku pilule, velika zaobljenja).
+ * Od rosysoil.com je uzet akvamarin, koji se koristi za grafikone.
+ */
+
+/* Fontovi (pakovani u aplikaciju, ne učitavaju se sa interneta). Uključeni su i znakovi č, ć, š, ž, đ. */
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+@import '@fontsource/work-sans/latin-400.css';
+@import '@fontsource/work-sans/latin-ext-400.css';
+@import '@fontsource/work-sans/latin-500.css';
+@import '@fontsource/work-sans/latin-ext-500.css';
+@import '@fontsource/work-sans/latin-600.css';
+@import '@fontsource/work-sans/latin-ext-600.css';
+
+:root {
+  color-scheme: light;
+
+  --font-body: 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Segoe UI', system-ui, sans-serif;
+
+  /* površine i tekst */
+  --bg: #efefea; /* podloga stranice */
+  --surface: #ffffff; /* kartice i podloga grafikona */
+  --surface-2: #e3e4dc; /* "pesak": pozadina grupa dugmadi, praznih traka */
+  --line: #d8d8d0;
+  --line-strong: #c9c9be; /* obrub polja i dugmadi */
+  --card-border: transparent;
+  --ink: #1c211b;
+  --ink-2: #3d4239;
+  --muted: #595d54;
+  --eyebrow: #6b4a33; /* male oznake velikim slovima */
+
+  /* glavna boja (dugmad, izabrane stavke) */
+  --brand: #2e4a2b;
+  --brand-hover: #1c301a;
+  --brand-ink: #ffffff; /* tekst na glavnoj boji */
+
+  /* tamne ploče (veliki broj na pregledu) i zlatni akcenat */
+  --panel: #1f2e1d;
+  --panel-ink: #edebe3;
+  --panel-muted: #bfc6b8;
+  --gold: #e8c77a;
+  --gold-ink: #2a2112;
+
+  /* stanja: u redu / uskoro / isteklo (uvek sa ikonom i rečju, nikad samo bojom) */
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warn: #fab219;
+  --warn-ink: #6e4a00;
+  --bad: #d03b3b;
+  --bad-ink: #a42323;
+
+  /* grafikoni (proverena paleta za daltoniste) */
+  --series-1: #1b8fb8; /* gorivo (akvamarin) */
+  --series-2: #d2702a; /* ostali troškovi */
+  --grid: #e6e6df;
+  --axis: #c9c9be;
+
+  /* oblik */
+  --radius: 14px;
+  --radius-lg: 24px;
+  --radius-xl: 28px;
+  --shadow: 0 1px 2px rgba(28, 33, 27, 0.06), 0 8px 24px rgba(28, 33, 27, 0.1);
+
+  /* odometar */
+  --odo-bg: #162313;
+  --odo-ink: #edebe3;
+  --odo-dec-bg: #edebe3;
+  --odo-dec-ink: #1f2e1d;
+}
+
+/* Tamni režim: prati telefon, osim ako je u aplikaciji izabrano drugačije */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+    --bg: #121812;
+    --surface: #1c241b;
+    --surface-2: #263025;
+    --line: #2e382d;
+    --line-strong: #3f4b3d;
+    --card-border: #2e382d;
+    --ink: #edebe3;
+    --ink-2: #cfd5c8;
+    --muted: #a6ada0;
+    --eyebrow: #d3a883;
+    --brand: #8db27f;
+    --brand-hover: #a6c99a;
+    --brand-ink: #101a0f;
+    --panel: #0e150d;
+    --panel-ink: #edebe3;
+    --panel-muted: #a9b2a1;
+    --good-ink: #3ccf3c;
+    --warn-ink: #fab219;
+    --bad-ink: #ff7b7b;
+    --series-1: #2b95c4;
+    --series-2: #d95926;
+    --grid: #2e382d;
+    --axis: #3f4b3d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --odo-bg: #1d2b1b;
+    --odo-ink: #edebe3;
+    --odo-dec-bg: #edebe3;
+    --odo-dec-ink: #101a0f;
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #121812;
+  --surface: #1c241b;
+  --surface-2: #263025;
+  --line: #2e382d;
+  --line-strong: #3f4b3d;
+  --card-border: #2e382d;
+  --ink: #edebe3;
+  --ink-2: #cfd5c8;
+  --muted: #a6ada0;
+  --eyebrow: #d3a883;
+  --brand: #8db27f;
+  --brand-hover: #a6c99a;
+  --brand-ink: #101a0f;
+  --panel: #0e150d;
+  --panel-ink: #edebe3;
+  --panel-muted: #a9b2a1;
+  --good-ink: #3ccf3c;
+  --warn-ink: #fab219;
+  --bad-ink: #ff7b7b;
+  --series-1: #2b95c4;
+  --series-2: #d95926;
+  --grid: #2e382d;
+  --axis: #3f4b3d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --odo-bg: #1d2b1b;
+  --odo-ink: #edebe3;
+  --odo-dec-bg: #edebe3;
+  --odo-dec-ink: #101a0f;
+}
