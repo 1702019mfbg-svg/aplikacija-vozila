@@ -1,109 +1,140 @@
 /*
  * IZGLED: sve boje, fontovi i zaobljenja aplikacije su ovde, na jednom mestu.
  * Raspored i ponašanje su u styles.css i ne zavise od izgleda.
- * Za promenu izgleda (boje, fontovi) menja se uglavnom samo ovaj fajl.
+ *
+ * Osnova je izgled sajta farmerkop.rs (krem podloga, tamnozelena, tamna tinta, smeđe oznake,
+ * naslovi Bricolage Grotesque, tekst Work Sans, dugmad u obliku pilule, velika zaobljenja).
+ * Od rosysoil.com je uzet akvamarin, koji se koristi za grafikone.
  */
 
-/* Fontovi (pakovani u aplikaciju, ne učitavaju se sa interneta). Latin + latin-ext zbog č, ć, š, ž, đ. */
-@import '@fontsource/barlow/latin-400.css';
-@import '@fontsource/barlow/latin-ext-400.css';
-@import '@fontsource/barlow/latin-500.css';
-@import '@fontsource/barlow/latin-ext-500.css';
-@import '@fontsource/barlow/latin-600.css';
-@import '@fontsource/barlow/latin-ext-600.css';
-@import '@fontsource/barlow/latin-700.css';
-@import '@fontsource/barlow/latin-ext-700.css';
-@import '@fontsource/barlow-condensed/latin-600.css';
-@import '@fontsource/barlow-condensed/latin-ext-600.css';
-@import '@fontsource/barlow-condensed/latin-700.css';
-@import '@fontsource/barlow-condensed/latin-ext-700.css';
+/* Fontovi (pakovani u aplikaciju, ne učitavaju se sa interneta). Uključeni su i znakovi č, ć, š, ž, đ. */
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+@import '@fontsource/work-sans/latin-400.css';
+@import '@fontsource/work-sans/latin-ext-400.css';
+@import '@fontsource/work-sans/latin-500.css';
+@import '@fontsource/work-sans/latin-ext-500.css';
+@import '@fontsource/work-sans/latin-600.css';
+@import '@fontsource/work-sans/latin-ext-600.css';
 
 :root {
   color-scheme: light;
 
-  --font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+  --font-body: 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Segoe UI', system-ui, sans-serif;
 
   /* površine i tekst */
-  --bg: #f4f4f1;
-  --surface: #fcfcfb; /* kartice i podloga grafikona */
-  --surface-2: #f0efec;
-  --line: #e1e0d9;
-  --ink: #1d1f21;
-  --ink-2: #52514e;
-  --muted: #6c6b65;
+  --bg: #efefea; /* podloga stranice */
+  --surface: #ffffff; /* kartice i podloga grafikona */
+  --surface-2: #e3e4dc; /* "pesak": pozadina grupa dugmadi, praznih traka */
+  --line: #d8d8d0;
+  --line-strong: #c9c9be; /* obrub polja i dugmadi */
+  --card-border: transparent;
+  --ink: #1c211b;
+  --ink-2: #3d4239;
+  --muted: #595d54;
+  --eyebrow: #6b4a33; /* male oznake velikim slovima */
 
-  /* glavna boja aplikacije i tamna traka na vrhu */
-  --brand: #f2b705;
-  --brand-ink: #1d1f21; /* tekst na glavnoj boji */
-  --header-bg: #2b2d2f;
-  --header-ink: #f4f4f1;
-  --header-muted: #b9b8ae;
+  /* glavna boja (dugmad, izabrane stavke) */
+  --brand: #2e4a2b;
+  --brand-hover: #1c301a;
+  --brand-ink: #ffffff; /* tekst na glavnoj boji */
+
+  /* tamne ploče (veliki broj na pregledu) i zlatni akcenat */
+  --panel: #1f2e1d;
+  --panel-ink: #edebe3;
+  --panel-muted: #bfc6b8;
+  --gold: #e8c77a;
+  --gold-ink: #2a2112;
 
   /* stanja: u redu / uskoro / isteklo (uvek sa ikonom i rečju, nikad samo bojom) */
   --good: #0ca30c;
   --good-ink: #006300;
   --warn: #fab219;
-  --warn-ink: #7a5300;
+  --warn-ink: #6e4a00;
   --bad: #d03b3b;
   --bad-ink: #a42323;
 
   /* grafikoni (proverena paleta za daltoniste) */
-  --series-1: #2a78d6; /* gorivo */
-  --series-2: #eb6834; /* ostali troškovi */
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
+  --series-1: #1b8fb8; /* gorivo (akvamarin) */
+  --series-2: #d2702a; /* ostali troškovi */
+  --grid: #e6e6df;
+  --axis: #c9c9be;
 
   /* oblik */
-  --radius: 10px;
-  --radius-lg: 16px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.08);
+  --radius: 14px;
+  --radius-lg: 24px;
+  --radius-xl: 28px;
+  --shadow: 0 1px 2px rgba(28, 33, 27, 0.06), 0 8px 24px rgba(28, 33, 27, 0.1);
 
-  /* odometar (veliki broj na pregledu) */
-  --odo-bg: #17181a;
-  --odo-ink: #f2b705;
-  --odo-dec-bg: #f2f2ef;
-  --odo-dec-ink: #17181a;
+  /* odometar */
+  --odo-bg: #162313;
+  --odo-ink: #edebe3;
+  --odo-dec-bg: #edebe3;
+  --odo-dec-ink: #1f2e1d;
 }
 
 /* Tamni režim: prati telefon, osim ako je u aplikaciji izabrano drugačije */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme='light'])) {
     color-scheme: dark;
-    --bg: #0f1011;
-    --surface: #1a1a19;
-    --surface-2: #242422;
-    --line: #2c2c2a;
-    --ink: #f2f2ef;
-    --ink-2: #c3c2b7;
-    --muted: #9c9b93;
-    --header-bg: #1a1a19;
+    --bg: #121812;
+    --surface: #1c241b;
+    --surface-2: #263025;
+    --line: #2e382d;
+    --line-strong: #3f4b3d;
+    --card-border: #2e382d;
+    --ink: #edebe3;
+    --ink-2: #cfd5c8;
+    --muted: #a6ada0;
+    --eyebrow: #d3a883;
+    --brand: #8db27f;
+    --brand-hover: #a6c99a;
+    --brand-ink: #101a0f;
+    --panel: #0e150d;
+    --panel-ink: #edebe3;
+    --panel-muted: #a9b2a1;
     --good-ink: #3ccf3c;
     --warn-ink: #fab219;
     --bad-ink: #ff7b7b;
-    --series-1: #3987e5;
+    --series-1: #2b95c4;
     --series-2: #d95926;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
+    --grid: #2e382d;
+    --axis: #3f4b3d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --odo-bg: #1d2b1b;
+    --odo-ink: #edebe3;
+    --odo-dec-bg: #edebe3;
+    --odo-dec-ink: #101a0f;
   }
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0f1011;
-  --surface: #1a1a19;
-  --surface-2: #242422;
-  --line: #2c2c2a;
-  --ink: #f2f2ef;
-  --ink-2: #c3c2b7;
-  --muted: #9c9b93;
-  --header-bg: #1a1a19;
+  --bg: #121812;
+  --surface: #1c241b;
+  --surface-2: #263025;
+  --line: #2e382d;
+  --line-strong: #3f4b3d;
+  --card-border: #2e382d;
+  --ink: #edebe3;
+  --ink-2: #cfd5c8;
+  --muted: #a6ada0;
+  --eyebrow: #d3a883;
+  --brand: #8db27f;
+  --brand-hover: #a6c99a;
+  --brand-ink: #101a0f;
+  --panel: #0e150d;
+  --panel-ink: #edebe3;
+  --panel-muted: #a9b2a1;
   --good-ink: #3ccf3c;
   --warn-ink: #fab219;
   --bad-ink: #ff7b7b;
-  --series-1: #3987e5;
+  --series-1: #2b95c4;
   --series-2: #d95926;
-  --grid: #2c2c2a;
-  --axis: #383835;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
+  --grid: #2e382d;
+  --axis: #3f4b3d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --odo-bg: #1d2b1b;
+  --odo-ink: #edebe3;
+  --odo-dec-bg: #edebe3;
+  --odo-dec-ink: #101a0f;
 }

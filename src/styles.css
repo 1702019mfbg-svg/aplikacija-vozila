@@ -17,7 +17,7 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 h1,
@@ -30,15 +30,17 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 h2 {
-  font-size: 1.35rem;
+  font-size: 1.4rem;
 }
 h3 {
   font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 ul {
   list-style: none;
@@ -91,16 +93,17 @@ code {
 }
 .header {
   z-index: 30;
-  background: var(--header-bg);
-  color: var(--header-ink);
+  background: var(--bg);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
   padding-top: env(safe-area-inset-top);
 }
 .header-inner {
   max-width: 980px;
   margin: 0 auto;
-  padding: 10px 16px 12px;
+  padding: 12px 16px 14px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .header-top {
   display: flex;
@@ -109,9 +112,10 @@ code {
   gap: 12px;
 }
 .brand {
-  font-size: 1.55rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 .header-controls {
   display: flex;
@@ -122,12 +126,13 @@ code {
 .header-select {
   flex: 1 1 200px;
   min-width: 0;
-  min-height: 44px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--header-ink) 28%, transparent);
-  background: color-mix(in srgb, var(--header-ink) 8%, transparent);
-  color: var(--header-ink);
+  min-height: 46px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
 }
 select option {
   background: var(--surface);
@@ -138,14 +143,14 @@ select option {
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
-  padding: 16px 16px calc(150px + env(safe-area-inset-bottom));
+  padding: 18px 16px calc(150px + env(safe-area-inset-bottom));
 }
 .main--narrow {
   max-width: 560px;
   padding-bottom: 48px;
 }
 
-/* meni sa kartice (telefon: dole) */
+/* meni sa karticama (telefon: dole) */
 .nav {
   position: fixed;
   left: 0;
@@ -173,7 +178,7 @@ select option {
   color: inherit;
 }
 .nav button[aria-current='page'] {
-  color: var(--ink);
+  color: var(--brand);
   box-shadow: inset 0 3px 0 var(--brand);
 }
 .nav-icon {
@@ -210,11 +215,14 @@ select option {
   gap: 8px;
   border: 0;
   border-radius: 999px;
-  padding: 14px 20px;
+  padding: 14px 24px;
   background: var(--brand);
   color: var(--brand-ink);
-  font-weight: 700;
+  font-weight: 600;
   box-shadow: var(--shadow);
+}
+.fab:hover {
+  background: var(--brand-hover);
 }
 
 /* ---------- prekidač Vozila / Radne mašine i slične grupe dugmadi ---------- */
@@ -222,20 +230,20 @@ select option {
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--header-ink) 14%, transparent);
+  border-radius: 999px;
+  background: var(--surface-2);
 }
 .seg button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   border: 0;
-  border-radius: 10px;
-  padding: 8px 14px;
+  border-radius: 999px;
+  padding: 8px 18px;
   min-height: 40px;
   background: transparent;
-  color: var(--header-ink);
+  color: var(--ink);
   font-weight: 600;
 }
 .seg button[aria-pressed='true'] {
@@ -245,31 +253,27 @@ select option {
 .seg--light {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: var(--surface-2);
-}
-.seg--light button {
-  color: var(--ink);
 }
 .pills {
   display: flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 14px;
+  border-radius: 999px;
   background: var(--surface-2);
   overflow-x: auto;
 }
 .pills button {
   flex: 1 0 auto;
   border: 0;
-  border-radius: 10px;
-  padding: 8px 14px;
+  border-radius: 999px;
+  padding: 8px 16px;
   min-height: 40px;
   background: transparent;
   font-weight: 600;
 }
 .pills button[aria-pressed='true'] {
   background: var(--ink);
-  color: var(--surface);
+  color: var(--bg);
 }
 .pills button:disabled {
   opacity: 0.5;
@@ -282,12 +286,12 @@ select option {
   gap: 10px;
   align-content: start;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 20px;
 }
 .card-title {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
 }
 .card-sub {
   color: var(--muted);
@@ -307,12 +311,16 @@ select option {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 10px 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
+  min-height: 46px;
+  padding: 10px 22px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
   font-weight: 600;
+}
+.btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
 .btn:disabled {
   opacity: 0.55;
@@ -323,22 +331,24 @@ select option {
   border-color: var(--brand);
   color: var(--brand-ink);
 }
+.btn--primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
 .btn--danger {
   color: var(--bad-ink);
-  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  border-color: var(--bad);
 }
 .btn--ghost {
   border-color: transparent;
-  background: transparent;
-  padding-inline: 8px;
+  padding-inline: 10px;
 }
 .btn--block {
   width: 100%;
 }
 .btn--header {
-  background: color-mix(in srgb, var(--header-ink) 10%, transparent);
-  color: var(--header-ink);
-  border-color: color-mix(in srgb, var(--header-ink) 25%, transparent);
+  min-height: 44px;
+  border-color: var(--line-strong);
 }
 .icon-btn {
   display: inline-grid;
@@ -346,12 +356,14 @@ select option {
   width: 44px;
   height: 44px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 50%;
   background: transparent;
 }
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
 .icon-btn--header {
-  color: var(--header-ink);
-  background: color-mix(in srgb, var(--header-ink) 10%, transparent);
+  border: 1.5px solid var(--line-strong);
 }
 .menu-wrap {
   position: relative;
@@ -359,12 +371,12 @@ select option {
 .menu {
   position: absolute;
   right: 0;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   z-index: 60;
-  min-width: 240px;
+  min-width: 250px;
   display: grid;
-  padding: 6px;
-  border-radius: 14px;
+  padding: 8px;
+  border-radius: 20px;
   background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--line);
@@ -376,15 +388,16 @@ select option {
   gap: 10px;
   border: 0;
   background: transparent;
-  border-radius: 10px;
-  padding: 11px 12px;
+  border-radius: 12px;
+  padding: 12px 14px;
   text-align: left;
+  font-weight: 500;
 }
 .menu button:hover {
   background: var(--surface-2);
 }
 .menu-user {
-  padding: 8px 12px;
+  padding: 8px 14px;
   color: var(--muted);
   font-size: 0.875rem;
   overflow-wrap: anywhere;
@@ -393,7 +406,7 @@ select option {
 .form {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  gap: 16px;
 }
 .row2 {
   display: grid;
@@ -415,12 +428,17 @@ input:not([type='checkbox']),
 select,
 textarea {
   width: 100%;
-  min-height: 46px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--ink) 25%, var(--line));
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink);
+}
+input:not([type='checkbox']):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--brand);
 }
 textarea {
   resize: vertical;
@@ -446,7 +464,7 @@ input[type='checkbox'] {
 .form-error {
   background: color-mix(in srgb, var(--bad) 10%, transparent);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 10px 14px;
 }
 .check {
   display: flex;
@@ -466,17 +484,18 @@ input[type='checkbox'] {
   margin-top: 6px;
 }
 .fieldset {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px 16px;
   display: grid;
   gap: 12px;
   margin: 0;
   min-width: 0;
 }
 .fieldset legend {
+  font-family: var(--font-display);
   font-weight: 700;
-  padding: 0 6px;
+  padding: 0 8px;
 }
 .form-actions {
   display: flex;
@@ -498,12 +517,15 @@ input[type='checkbox'] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
-  padding: 8px 14px;
+  min-height: 42px;
+  padding: 8px 18px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  background: transparent;
   font-weight: 600;
+}
+.chip:hover:not(:disabled) {
+  border-color: var(--ink);
 }
 .chip[aria-checked='true'] {
   background: var(--brand);
@@ -519,7 +541,7 @@ input[type='checkbox'] {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(18, 24, 18, 0.55);
   display: grid;
   align-items: end;
   justify-items: center;
@@ -529,7 +551,7 @@ input[type='checkbox'] {
   max-height: 94dvh;
   overflow-y: auto;
   background: var(--surface);
-  border-radius: 20px 20px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding-bottom: env(safe-area-inset-bottom);
 }
 .modal-head {
@@ -540,12 +562,12 @@ input[type='checkbox'] {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 12px 10px 18px;
+  padding: 16px 14px 12px 22px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 .modal-body {
-  padding: 16px 18px 22px;
+  padding: 18px 22px 24px;
 }
 .toasts {
   position: fixed;
@@ -562,10 +584,10 @@ input[type='checkbox'] {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 13px 18px;
+  border-radius: 999px;
   background: var(--ink);
-  color: var(--surface);
+  color: var(--bg);
   box-shadow: var(--shadow);
   font-weight: 500;
 }
@@ -579,10 +601,10 @@ input[type='checkbox'] {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px 3px 8px;
+  padding: 3px 12px 3px 9px;
   border-radius: 999px;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 .badge--ok {
@@ -590,8 +612,8 @@ input[type='checkbox'] {
   color: var(--good-ink);
 }
 .badge--soon {
-  background: color-mix(in srgb, var(--warn) 22%, transparent);
-  color: var(--warn-ink);
+  background: var(--gold);
+  color: var(--gold-ink);
 }
 .badge--overdue {
   background: color-mix(in srgb, var(--bad) 16%, transparent);
@@ -600,7 +622,7 @@ input[type='checkbox'] {
 .alerts ul {
   display: grid;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .alert {
   display: flex;
@@ -608,14 +630,14 @@ input[type='checkbox'] {
   gap: 12px;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-left-width: 5px;
-  border-radius: var(--radius);
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-left-width: 6px;
+  border-radius: 16px;
   background: var(--surface);
 }
 .alert--soon {
-  border-left-color: var(--warn);
+  border-left-color: var(--gold);
 }
 .alert--overdue {
   border-left-color: var(--bad);
@@ -634,10 +656,11 @@ input[type='checkbox'] {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--line));
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warn) 14%, var(--surface));
+  padding: 13px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--gold-ink);
   text-align: left;
   font-weight: 600;
 }
@@ -646,12 +669,11 @@ input[type='checkbox'] {
   text-decoration: underline;
 }
 .reminder {
-  display: grid;
+  border-left: 6px solid var(--line-strong);
   gap: 8px;
-  border-left-width: 5px;
 }
 .reminder--soon {
-  border-left-color: var(--warn);
+  border-left-color: var(--gold);
 }
 .reminder--overdue {
   border-left-color: var(--bad);
@@ -673,20 +695,18 @@ input[type='checkbox'] {
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  padding: 18px;
-  border-radius: var(--radius-lg);
-  background: var(--header-bg);
-  color: var(--header-ink);
-  border: 1px solid color-mix(in srgb, var(--header-ink) 14%, transparent);
+  gap: 14px;
+  padding: 22px;
+  border-radius: var(--radius-xl);
+  background: var(--panel);
+  color: var(--panel-ink);
 }
 .hero-label {
-  font-family: var(--font-display);
+  font-size: 0.8rem;
   font-weight: 600;
-  font-size: 1.05rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--header-muted);
+  letter-spacing: 0.14em;
+  color: var(--panel-muted);
 }
 .hero-figure {
   display: flex;
@@ -696,13 +716,14 @@ input[type='checkbox'] {
 }
 .hero-unit {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.6rem;
-  color: var(--brand);
+  font-weight: 800;
+  font-size: 1.7rem;
+  letter-spacing: -0.02em;
+  color: var(--gold);
   padding-bottom: 6px;
 }
 .hero-hint {
-  color: var(--header-muted);
+  color: var(--panel-muted);
   font-size: 0.9rem;
 }
 .hero-toggle {
@@ -713,14 +734,17 @@ input[type='checkbox'] {
 }
 .hero-toggle small {
   display: block;
-  color: var(--header-muted);
+  color: var(--panel-muted);
+}
+.hero-toggle input {
+  accent-color: var(--gold);
 }
 .hero-link {
   justify-self: start;
   background: none;
   border: 0;
   padding: 0;
-  color: var(--brand);
+  color: var(--gold);
   text-decoration: underline;
   font-size: 0.9rem;
 }
@@ -735,17 +759,17 @@ input[type='checkbox'] {
   place-items: center;
   width: clamp(32px, 10.5vw, 50px);
   height: clamp(50px, 15vw, 74px);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--odo-bg);
   color: var(--odo-ink);
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: clamp(34px, 10.5vw, 52px);
   line-height: 1;
   box-shadow:
-    inset 0 -12px 14px rgba(0, 0, 0, 0.5),
-    inset 0 10px 12px rgba(255, 255, 255, 0.05),
-    0 0 0 1px rgba(255, 255, 255, 0.12);
+    inset 0 -12px 14px rgba(0, 0, 0, 0.35),
+    inset 0 10px 12px rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 .odo-cell::after {
   content: '';
@@ -754,28 +778,28 @@ input[type='checkbox'] {
   right: 0;
   top: 50%;
   height: 1px;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.5);
 }
 .odo-cell--dec {
   background: var(--odo-dec-bg);
   color: var(--odo-dec-ink);
   box-shadow:
-    inset 0 -12px 14px rgba(0, 0, 0, 0.14),
-    0 0 0 1px rgba(0, 0, 0, 0.35);
+    inset 0 -12px 14px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 .odo-cell--dec::after {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.22);
 }
 .odo-cell--empty {
-  color: color-mix(in srgb, var(--odo-ink) 55%, transparent);
+  color: color-mix(in srgb, var(--odo-ink) 45%, transparent);
 }
 .odo-sep {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: clamp(30px, 9vw, 44px);
   line-height: 1;
   padding: 0 1px 4px;
-  color: var(--odo-ink);
+  color: var(--gold);
 }
 .kpis {
   display: grid;
@@ -784,25 +808,26 @@ input[type='checkbox'] {
 }
 .kpi {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
-  padding: 14px;
+  padding: 16px 18px;
   display: grid;
-  gap: 2px;
+  gap: 4px;
   align-content: start;
   min-width: 0;
 }
 .kpi-label {
-  color: var(--muted);
-  font-size: 0.82rem;
+  color: var(--eyebrow);
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
 }
 .kpi-value {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.75rem;
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
@@ -849,8 +874,8 @@ input[type='checkbox'] {
   display: grid;
   gap: 2px;
   min-width: 150px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
@@ -921,7 +946,7 @@ input[type='checkbox'] {
 .catbars-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 .catbars-list > li {
   display: grid;
@@ -960,13 +985,16 @@ input[type='checkbox'] {
 .toolbar-row select {
   width: auto;
   flex: 1 1 160px;
+  border-radius: 999px;
+  padding-inline: 18px;
 }
 .group-title {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 4px 4px 8px;
-  font-size: 1.1rem;
+  padding: 6px 6px 8px;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 .list {
   padding: 0;
@@ -981,14 +1009,14 @@ input[type='checkbox'] {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 60px;
-  padding: 10px 16px;
+  min-height: 62px;
+  padding: 12px 20px;
   border: 0;
   background: transparent;
   text-align: left;
 }
 .row:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
 }
 .row-main {
   display: grid;
@@ -1028,10 +1056,11 @@ input[type='checkbox'] {
   margin: 4px 0 0;
 }
 .facts dt {
-  color: var(--muted);
-  font-size: 0.8rem;
+  color: var(--eyebrow);
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
 }
 .facts dd {
   margin: 0;
@@ -1048,9 +1077,9 @@ input[type='checkbox'] {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  padding: 12px 16px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-lg);
 }
 .share-row > div {
   min-width: 0;
@@ -1068,9 +1097,11 @@ input[type='checkbox'] {
   padding: 20px;
 }
 .login-card {
-  width: min(440px, 100%);
+  width: min(460px, 100%);
   display: grid;
-  gap: 16px;
+  gap: 18px;
+  padding: 28px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
 }
 .login-top {
@@ -1078,8 +1109,11 @@ input[type='checkbox'] {
   align-items: center;
   justify-content: space-between;
 }
+.login .brand {
+  font-size: 2rem;
+}
 .demo-hint {
-  border-top: 1px dashed var(--line);
+  border-top: 1px dashed var(--line-strong);
   padding-top: 12px;
 }
 .driver-vehicle {
@@ -1090,7 +1124,10 @@ input[type='checkbox'] {
   font-weight: 600;
 }
 .driver-question {
-  font-size: 1.7rem;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
 }
 .tiles {
   display: grid;
@@ -1099,23 +1136,29 @@ input[type='checkbox'] {
 }
 .tile {
   min-height: 92px;
-  padding: 12px;
+  padding: 14px;
   border-radius: var(--radius-lg);
-  border: 3px solid var(--brand);
-  background: var(--header-bg);
-  color: var(--header-ink);
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.45rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
   line-height: 1.1;
+}
+.tile:hover {
+  border-color: var(--brand);
 }
 .tile:first-child {
   grid-column: 1 / -1;
   background: var(--brand);
   color: var(--brand-ink);
   border-color: var(--brand);
+  font-size: 1.6rem;
+}
+.tile:first-child:hover {
+  background: var(--brand-hover);
 }
 .done {
   display: grid;
@@ -1153,7 +1196,7 @@ input[type='checkbox'] {
     align-items: center;
   }
   .modal {
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     max-height: 90dvh;
   }
   .toasts {
@@ -1180,10 +1223,10 @@ input[type='checkbox'] {
     position: static;
     grid-column: 1 / -1;
     display: flex;
-    gap: 4px;
+    gap: 6px;
     background: transparent;
-    border-top: 1px solid color-mix(in srgb, var(--header-ink) 14%, transparent);
-    color: var(--header-muted);
+    border-top: 1px solid var(--line);
+    color: var(--ink-2);
     padding: 6px 0 0;
   }
   .nav button {
@@ -1191,14 +1234,14 @@ input[type='checkbox'] {
     flex-direction: row;
     gap: 8px;
     min-height: 44px;
-    padding: 8px 14px;
-    font-size: 0.95rem;
-    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 1rem;
+    font-weight: 500;
+    border-radius: 0;
   }
   .nav button[aria-current='page'] {
-    color: var(--header-ink);
-    box-shadow: inset 0 -3px 0 var(--brand);
-    border-radius: 0;
+    color: var(--ink);
+    box-shadow: inset 0 -2px 0 var(--ink);
   }
   .main {
     padding-bottom: 110px;

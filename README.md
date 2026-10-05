@@ -178,6 +178,6 @@ npm run build        # provera tipova + produkcioni build
 
 - **Bezbednosni model** (`supabase/schema.sql`): vlasnik je Supabase korisnik, a RLS dozvoljava samo redove čiji je on vlasnik. Vozač nema nalog: `anon` rola nema pristup nijednoj tabeli, već samo dvema `SECURITY DEFINER` funkcijama (`driver_login`, `driver_add_expense`) uz kod + PIN. PIN je bcrypt hash u šemi `private`, koju API ne izlaže. Posle 5 grešaka sledi zaključavanje 15 minuta, a brojač se čuva i pri neuspehu (funkcije vraćaju status umesto da bacaju grešku).
 - **Testovi baze** (`test/rls.test.ts`) pokreću pravi Postgres (PGlite) sa tom šemom i proveravaju: izolaciju vlasnika, da vozač ne može da pročita ništa, zaključavanje PIN-a, validaciju unosa i radne sate.
-- **Izgled** je izdvojen: boje, fontovi i zaobljenja su u `src/theme.css`, a raspored u `src/styles.css`.
+- **Izgled** je izdvojen: boje, fontovi i zaobljenja su u `src/theme.css`, a raspored u `src/styles.css`. Izgled prati sajt farmerkop.rs (krem podloga, tamnozelena, smeđe oznake, fontovi Bricolage Grotesque i Work Sans, dugmad u obliku pilule), uz akvamarin sa rosysoil.com za grafikone. Boje grafikona su proverene za daltoniste, u svetlom i tamnom režimu.
 - **Struktura:** `src/lib` (proračuni, formati, API sloj), `src/components`, `src/pages`, `src/hooks`, `test`, `supabase`.
 - Podaci iz baze se ne keširaju u service worker-u (kešira se samo sama aplikacija).
