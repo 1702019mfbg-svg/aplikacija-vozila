@@ -19,6 +19,7 @@ export interface SectionCopy {
   one: string // "vozilo" / "mašina"
   select: string // oznaka izbora
   add: string // dugme za dodavanje
+  added: string // poruka posle dodavanja
   newTitle: string
   editTitle: string
   empty: string // kad nema nijedne stavke
@@ -41,6 +42,7 @@ export const SECTION_COPY: Record<Section, SectionCopy> = {
     one: 'vozilo',
     select: 'Vozilo',
     add: 'Dodaj vozilo',
+    added: 'Vozilo je dodato.',
     newTitle: 'Novo vozilo',
     editTitle: 'Izmena vozila',
     empty: 'Još nema nijednog vozila',
@@ -61,6 +63,7 @@ export const SECTION_COPY: Record<Section, SectionCopy> = {
     one: 'mašina',
     select: 'Mašina',
     add: 'Dodaj mašinu',
+    added: 'Mašina je dodata.',
     newTitle: 'Nova mašina',
     editTitle: 'Izmena mašine',
     empty: 'Još nema nijedne radne mašine',

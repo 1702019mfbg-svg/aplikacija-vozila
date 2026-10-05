@@ -67,8 +67,8 @@ export function evaluateReminder(r: Reminder, currentMeter: number, now = new Da
     else parts.push(`Za ${formatDays(daysLeft)} (${formatDate(dueDate)})`)
   }
   if (meterLeft !== null && dueMeter !== null) {
-    if (meterLeft < 0) parts.push(`Prekoračeno za ${formatMeter(-meterLeft, unit)} (rok ${formatMeter(dueMeter, unit)})`)
-    else parts.push(`Za ${formatMeter(meterLeft, unit)} (na ${formatMeter(dueMeter, unit)})`)
+    if (meterLeft < 0) parts.push(`Prekoračeno za ${formatMeter(-meterLeft, unit, true)} (rok ${formatMeter(dueMeter, unit, true)})`)
+    else parts.push(`Za ${formatMeter(meterLeft, unit, true)} (na ${formatMeter(dueMeter, unit, true)})`)
   }
   if (parts.length === 0) parts.push('Upišite poslednji servis da bi se rok izračunao')
 

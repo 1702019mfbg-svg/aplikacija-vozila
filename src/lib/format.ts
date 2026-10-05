@@ -13,9 +13,15 @@ export function formatNumber(n: number, decimals = 2): string {
 export const formatRSD = (n: number, decimals = 2): string => `${formatNumber(n, decimals)} RSD`
 export const formatKm = (n: number): string => `${formatNumber(n, 0)} km`
 
-/** Brojač vozila: "123.456 km" ili "4.321,5 h" (radni sati imaju jednu decimalu). */
-export const formatMeter = (n: number, unit: MeterUnit): string =>
-  unit === 'h' ? `${formatNumber(n, 1)} h` : `${formatNumber(n, 0)} km`
+/**
+ * Brojač vozila: "123.456 km" ili "4.321,5 h" (radni sati imaju jednu decimalu).
+ * Kompaktno: ceo broj sati bez decimale ("250 h"), za intervale i razlike.
+ */
+export function formatMeter(n: number, unit: MeterUnit, compact = false): string {
+  if (unit === 'km') return `${formatNumber(n, 0)} km`
+  const whole = compact && Math.abs(n - Math.round(n)) < 1e-9
+  return `${formatNumber(n, whole ? 0 : 1)} h`
+}
 
 /** Naziv polja: "Kilometraža" ili "Radni sati". */
 export const meterName = (unit: MeterUnit): string => (unit === 'h' ? 'Radni sati' : 'Kilometraža')

@@ -463,6 +463,8 @@ describe('viljuškari: radni sati umesto kilometara', () => {
   it('prikaz: "4.321,5 h" i "123.456 km"', () => {
     expect(formatMeter(4321.5, 'h')).toBe('4.321,5 h')
     expect(formatMeter(4321, 'h')).toBe('4.321,0 h')
+    expect(formatMeter(250, 'h', true)).toBe('250 h')
+    expect(formatMeter(49.7, 'h', true)).toBe('49,7 h')
     expect(formatMeter(123456, 'km')).toBe('123.456 km')
     expect(meterName('h')).toBe('Radni sati')
     expect(meterName('km')).toBe('Kilometraža')
@@ -516,8 +518,8 @@ describe('viljuškari: radni sati umesto kilometara', () => {
     expect(ev(4400).status).toBe('soon') // tačno 50 sati do roka
     expect(ev(4400.3).meterLeft).toBe(49.7)
     expect(ev(4451).status).toBe('overdue')
-    expect(ev(4400).parts[0]).toBe('Za 50,0 h (na 4.450,0 h)')
-    expect(ev(4451).parts[0]).toBe('Prekoračeno za 1,0 h (rok 4.450,0 h)')
+    expect(ev(4400).parts[0]).toBe('Za 50 h (na 4.450 h)')
+    expect(ev(4451).parts[0]).toBe('Prekoračeno za 1 h (rok 4.450 h)')
     // isti brojevi kod vozila na kilometre bi već bili "uskoro" (prag je 1.000 km)
     expect(evaluateReminder(r, 4399, NOW, 'km').status).toBe('soon')
   })
