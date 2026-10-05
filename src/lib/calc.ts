@@ -1,4 +1,4 @@
-import { addYears, daysInMonth, diffDays, monthIndex, monthKey, parseISO, toISO } from './dates'
+import { addDays, addYears, daysInMonth, diffDays, monthIndex, monthKey, parseISO, toISO } from './dates'
 import { MONTHS_SHORT, todayISO } from './format'
 import type { Category, Expense, Vehicle } from './types'
 
@@ -17,6 +17,8 @@ export interface Range {
 }
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
+/** Brojač ima najviše jednu decimalu; zaokruživanje skida plutajuće greške (4340,7 - 4321,5). */
+export const round1 = (n: number): number => Math.round((n + Number.EPSILON) * 10) / 10
 
 export function periodRange(period: Period, now = new Date()): Range {
   const { y, m } = parseISO(todayISO(now))
@@ -42,25 +44,32 @@ export function filterByRange<T extends { expense_date: string }>(list: T[], r: 
 /** Zbir iznosa; unosi bez iznosa (null) se ne računaju. */
 export const sumAmount = (list: Expense[]): number => round2(list.reduce((s, e) => s + (e.amount ?? 0), 0))
 
-/** Pređeni km = najveća minus najmanja upisana kilometraža u listi. Potrebna su bar dva različita očitavanja. */
-export function kmDriven(list: Expense[]): number | null {
-  const odo = list.map((e) => e.odometer).filter((o): o is number => o !== null)
-  if (odo.length < 2) return null
-  const km = Math.max(...odo) - Math.min(...odo)
-  return km > 0 ? km : null
+/**
+ * Korišćenje u periodu = najveće minus najmanje upisano očitavanje brojača (km ili radni sati).
+ * Potrebna su bar dva različita očitavanja.
+ */
+export function usageInRange(list: Expense[]): number | null {
+  const readings = list.map((e) => e.odometer).filter((o): o is number => o !== null)
+  if (readings.length < 2) return null
+  const used = round1(Math.max(...readings) - Math.min(...readings))
+  return used > 0 ? used : null
 }
 
 export interface FuelStats {
   liters: number
-  km: number
+  /** km ili radni sati između prvog i poslednjeg punog sipanja */
+  usage: number
+  /** litara na 100 km (ili na 100 sati) */
   per100: number
+  /** litara po jedinici: L/km ili L/h (za viljuškare se prikazuje L/h) */
+  perUnit: number
   fills: number
 }
 
 /**
  * Potrošnja metodom punog rezervoara: litri od prvog do poslednjeg punog sipanja
- * (bez prvog) podeljeni sa pređenim km između njih, puta 100.
- * Delimična sipanja između njih se računaju. Potrebna su bar dva puna sipanja sa kilometražom.
+ * (bez prvog) podeljeni sa pređenim km (ili radnim satima) između njih.
+ * Delimična sipanja između njih se računaju. Potrebna su bar dva puna sipanja sa očitavanjem brojača.
  */
 export function fuelStats(list: Expense[]): FuelStats | null {
   const fuel = list
@@ -78,11 +87,11 @@ export function fuelStats(list: Expense[]): FuelStats | null {
   if (full.length < 2) return null
   const first = full[0]
   const last = full[full.length - 1]
-  const km = (fuel[last].odometer as number) - (fuel[first].odometer as number)
-  if (km <= 0) return null
+  const usage = round1((fuel[last].odometer as number) - (fuel[first].odometer as number))
+  if (usage <= 0) return null
   let liters = 0
   for (let i = first + 1; i <= last; i++) liters += fuel[i].liters as number
-  return { liters: round2(liters), km, per100: (liters / km) * 100, fills: full.length }
+  return { liters: round2(liters), usage, per100: (liters / usage) * 100, perUnit: liters / usage, fills: full.length }
 }
 
 export interface Amortization {
@@ -102,15 +111,9 @@ export function amortization(v: Vehicle, range: Range, now = new Date()): Amorti
   const daily = v.purchase_price / diffDays(endExclusive, start)
   const from = range.from !== null && range.from > start ? range.from : start
   // do kraja perioda, ali najkasnije do danas i do poslednjeg dana amortizacije
-  const to = [range.to ?? '9999-12-31', todayISO(now), shiftDay(endExclusive, -1)].reduce((a, b) => (a < b ? a : b))
+  const to = [range.to ?? '9999-12-31', todayISO(now), addDays(endExclusive, -1)].reduce((a, b) => (a < b ? a : b))
   const days = Math.max(0, diffDays(to, from) + 1)
   return { amount: round2(daily * days), perMonth: round2((daily * 365.25) / 12), years: v.amort_years }
-}
-
-function shiftDay(iso: string, delta: number): string {
-  const { y, m, d } = parseISO(iso)
-  const dt = new Date(Date.UTC(y, m - 1, d + delta))
-  return toISO(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate())
 }
 
 /** Koliko kalendarskih meseci obuhvata period (od prvog unosa u periodu do tekućeg meseca), najmanje 1. */
@@ -129,8 +132,12 @@ export interface Summary {
   expensesTotal: number
   amort: Amortization | null
   total: number // troškovi (+ amortizacija ako je uključena)
-  km: number | null
-  costPerKm: number | null
+  /** pređeni km ili odrađeni radni sati u periodu */
+  usage: number | null
+  /** RSD po km (ili RSD po satu za mašine) */
+  costPerUnit: number | null
+  /** prosečno korišćenje mesečno (km ili sati) */
+  usagePerMonth: number | null
   fuel: FuelStats | null
   months: number
   monthlyAvg: number
@@ -148,7 +155,7 @@ export function summarize(
   const expensesTotal = sumAmount(list)
   const amort = amortization(vehicle, range, now)
   const total = round2(expensesTotal + (opts.includeAmort && amort ? amort.amount : 0))
-  const km = kmDriven(list)
+  const usage = usageInRange(list)
   const months = monthsSpanned(list, range, now)
   return {
     range,
@@ -158,8 +165,9 @@ export function summarize(
     expensesTotal,
     amort,
     total,
-    km,
-    costPerKm: km ? total / km : null,
+    usage,
+    costPerUnit: usage ? total / usage : null,
+    usagePerMonth: usage ? usage / months : null,
     fuel: fuelStats(list),
     months,
     monthlyAvg: total / months,
@@ -216,7 +224,7 @@ export function byCategory(list: Expense[]): CategoryShare[] {
     .sort((a, b) => b.amount - a.amount)
 }
 
-/** Poslednja poznata kilometraža vozila. */
+/** Poslednja poznata vrednost brojača vozila (km ili radni sati). */
 export function latestOdometer(vehicle: Vehicle, list: Expense[]): number {
   return list.reduce((max, e) => (e.odometer !== null && e.odometer > max ? e.odometer : max), vehicle.initial_odometer)
 }

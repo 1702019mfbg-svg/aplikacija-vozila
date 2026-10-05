@@ -27,12 +27,20 @@ export const NOTE_REQUIRED: Category[] = ['ostalo', 'vanredni']
 
 export const categoryLabel = (id: string): string => CATEGORIES.find((c) => c.id === id)?.label ?? id
 
+/** Čime se meri korišćenje: kilometri (vozila) ili radni sati (viljuškari, mašine). */
+export type MeterUnit = 'km' | 'h'
+export const METER_UNITS: { id: MeterUnit; label: string }[] = [
+  { id: 'km', label: 'Kilometri (automobil, kombi, kamion)' },
+  { id: 'h', label: 'Radni sati (viljuškar, mašina)' },
+]
+
 export interface Vehicle {
   id: string
   name: string
   plate: string | null
   fuel_type: FuelType
-  initial_odometer: number
+  meter_unit: MeterUnit
+  initial_odometer: number // km ili radni sati
   purchase_date: string | null
   purchase_price: number | null
   amort_years: number | null
@@ -75,12 +83,10 @@ export interface Reminder {
   type: ReminderType
   title: string
   due_date: string | null // datum isteka (svi tipovi osim servisa)
-  interval_km: number | null // servis: na svakih X km
+  interval_meter: number | null // servis: na svakih X km (ili radnih sati)
   interval_months: number | null // servis: na svakih X meseci; ostali: na koliko meseci se obnavlja
   last_date: string | null // servis: kad je poslednji put urađen
-  last_km: number | null
-  warn_days: number // koliko dana unapred upozoriti
-  warn_km: number // koliko km unapred upozoriti (servis)
+  last_meter: number | null
 }
 
 export type ReminderInput = Omit<Reminder, 'id'>
@@ -95,6 +101,7 @@ export interface DriverVehicle {
   name: string
   plate: string | null
   fuel_type: FuelType
+  meter_unit: MeterUnit
   last_odometer: number
 }
 

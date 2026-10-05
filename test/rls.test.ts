@@ -363,8 +363,8 @@ describe('podsetnici i pogled sa kilometražom', () => {
     const a = await as(A, () => q<any>(`select * from vehicle_status order by last_odometer desc`))
     expect(a.map((r) => r.vehicle_id).sort()).toEqual([vehicleA1, vehicleA2].sort())
     // početna 100000, a vozač je upisao 100500 (gorivo)
-    expect(a.find((r) => r.vehicle_id === vehicleA1).last_odometer).toBe(100500)
-    expect(a.find((r) => r.vehicle_id === vehicleA2).last_odometer).toBe(0)
+    expect(Number(a.find((r) => r.vehicle_id === vehicleA1).last_odometer)).toBe(100500)
+    expect(Number(a.find((r) => r.vehicle_id === vehicleA2).last_odometer)).toBe(0)
     const b = await as(B, () => q<any>(`select * from vehicle_status`))
     expect(b.map((r) => r.vehicle_id)).toEqual([vehicleB1])
   })
@@ -397,25 +397,68 @@ describe('podsetnici i pogled sa kilometražom', () => {
     ))).rejects.toThrow(/reminders_type_check/)
   })
 
-  it('upozorenje unapred ima razumne granice, a podrazumevano je 30 dana i 1000 km', async () => {
-    const r = (await as(A, () => q<any>(
-      `insert into reminders (vehicle_id, type, title, due_date) values ('${vehicleA1}', 'tehnicki', 'Tehnički pregled', '2030-01-01') returning *`,
-    )))[0]
-    expect(r.warn_days).toBe(30)
-    expect(r.warn_km).toBe(1000)
-    await expect(as(A, () => q(
-      `insert into reminders (vehicle_id, type, title, due_date, warn_days) values ('${vehicleA1}', 'tehnicki', 'T', '2030-01-01', 400)`,
-    ))).rejects.toThrow(/warn_days/)
-  })
-
   it('sva tri stalna podsetnika (tehnički na 6 meseci, registracija, tahograf) mogu da se zapišu', async () => {
     const rows = await as(A, () => q<any>(
-      `insert into reminders (vehicle_id, type, title, due_date, interval_months, warn_days) values
-         ('${vehicleA2}', 'tehnicki', 'Tehnički pregled', '2027-03-01', 6, 30),
-         ('${vehicleA2}', 'registracija', 'Registracija', '2027-05-01', 12, 30),
-         ('${vehicleA2}', 'tahograf', 'Tahograf', '2028-01-15', 24, 60) returning type`,
+      `insert into reminders (vehicle_id, type, title, due_date, interval_months) values
+         ('${vehicleA2}', 'tehnicki', 'Tehnički pregled', '2027-03-01', 6),
+         ('${vehicleA2}', 'registracija', 'Registracija', '2027-05-01', 12),
+         ('${vehicleA2}', 'tahograf', 'Tahograf', '2028-01-15', 24) returning type`,
     ))
     expect(rows.map((r) => r.type).sort()).toEqual(['registracija', 'tahograf', 'tehnicki'])
+  })
+})
+
+describe('viljuškari: radni sati umesto kilometara', () => {
+  let forklift: string
+  let code2: string
+
+  beforeAll(async () => {
+    forklift = (await as(A, () => q<{ id: string }>(
+      `insert into vehicles (name, fuel_type, meter_unit, initial_odometer) values ('Linde H25', 'TNG', 'h', 4321.5) returning id`)))[0].id
+    code2 = (await as(A, () => driverCall('create_driver', ['Operater', '2468', [forklift]]))).code
+  })
+
+  it('brojač je podrazumevano km, a dozvoljeni su samo km i h', async () => {
+    const def = await as(A, () => q<any>(`select meter_unit from vehicles where id = '${vehicleA1}'`))
+    expect(def[0].meter_unit).toBe('km')
+    await expect(as(A, () => q(
+      `insert into vehicles (name, fuel_type, meter_unit) values ('X', 'Dizel', 'mil')`,
+    ))).rejects.toThrow(/meter_unit/)
+  })
+
+  it('prijava operatera vraća jedinicu (h) i poslednji upisani broj sati sa decimalom', async () => {
+    const r = await as('anon', () => driverCall('driver_login', [code2, '2468']))
+    expect(r.ok).toBe(true)
+    expect(r.vehicles[0]).toMatchObject({ name: 'Linde H25', meter_unit: 'h', last_odometer: 4321.5 })
+  })
+
+  it('operater upisuje gorivo sa satima na jednu decimalu', async () => {
+    const id = crypto.randomUUID()
+    const r = await as('anon', () => addExpense(
+      { id, vehicle: forklift, category: 'gorivo', liters: 62.4, odometer: 4340.7, full: true, amount: 11800 }, '2468', code2))
+    expect(r.ok).toBe(true)
+    const row = (await as(A, () => q<any>(`select odometer, liters from expenses where id = '${id}'`)))[0]
+    expect(Number(row.odometer)).toBe(4340.7)
+    expect(Number(row.liters)).toBe(62.4)
+  })
+
+  it('sati ne mogu da se vrate unazad (ni za deseti deo sata)', async () => {
+    const r = await as('anon', () => addExpense(
+      { vehicle: forklift, category: 'gorivo', liters: 30, odometer: 4340.6, full: true }, '2468', code2))
+    expect(r).toEqual({ ok: false, error: 'odometer_low', last_odometer: 4340.7 })
+    expect((await as('anon', () => addExpense(
+      { vehicle: forklift, category: 'gorivo', liters: 30, odometer: 4340.7, full: true }, '2468', code2))).ok).toBe(true)
+  })
+
+  it('poslednje sate vidi i vlasnik u pogledu sa stanjem', async () => {
+    const rows = await as(A, () => q<any>(`select last_odometer from vehicle_status where vehicle_id = '${forklift}'`))
+    expect(Number(rows[0].last_odometer)).toBe(4340.7)
+  })
+
+  it('servis na svakih 250 radnih sati može da se zapiše', async () => {
+    const r = await as(A, () => q<any>(
+      `insert into reminders (vehicle_id, type, title, interval_meter, last_meter) values ('${forklift}', 'servis', 'Servis 250 h', 250, 4200) returning interval_meter`))
+    expect(Number(r[0].interval_meter)).toBe(250)
   })
 })
 

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  amortization, byCategory, filterByRange, fuelStats, kmDriven, latestOdometer, monthlySeries, monthsSpanned,
+  amortization, byCategory, filterByRange, fuelStats, usageInRange, latestOdometer, monthlySeries, monthsSpanned,
   periodRange, sumAmount, summarize,
 } from '../src/lib/calc'
 import { buildCsv, csvFilename } from '../src/lib/csv'
 import { addMonths, diffDays } from '../src/lib/dates'
-import { formatDate, formatNumber, formatRSD, parseDecimal, parseInteger, plural, todayISO } from '../src/lib/format'
-import { REMINDER_PRESETS, collectAlerts, evaluateReminder, markDone, nextDueDate, presetFor, sortByUrgency } from '../src/lib/reminders'
-import type { Expense, Reminder, Vehicle } from '../src/lib/types'
+import { formatDate, formatMeter, formatNumber, formatRSD, meterName, parseDecimal, parseInteger, parseMeter, plural, todayISO } from '../src/lib/format'
+import { REMINDER_PRESETS, WARN_DAYS, collectAlerts, evaluateReminder, markDone, nextDueDate, presetFor, sortByUrgency } from '../src/lib/reminders'
+import { CATEGORIES, type Expense, type Reminder, type Vehicle } from '../src/lib/types'
+import { SECTION_COPY, categoriesFor, consumptionUnit, reminderTypesFor, sectionOf, unitOfSection, vehiclesIn } from '../src/lib/sections'
 
 const NOW = new Date(2026, 9, 5, 12, 0, 0) // 5. oktobar 2026.
 
@@ -24,7 +25,7 @@ const fill = (odometer: number, liters: number, full: boolean, p: Partial<Expens
   exp({ category: 'gorivo', odometer, liters, full_tank: full, ...p })
 
 const vehicle: Vehicle = {
-  id: 'v1', name: 'Golf', plate: 'BG-123-AA', fuel_type: 'Dizel', initial_odometer: 100000,
+  id: 'v1', name: 'Golf', plate: 'BG-123-AA', fuel_type: 'Dizel', meter_unit: 'km', initial_odometer: 100000,
   purchase_date: null, purchase_price: null, amort_years: null,
 }
 
@@ -97,12 +98,12 @@ describe('periodi', () => {
 
 describe('pređeni kilometri', () => {
   it('najveća minus najmanja upisana kilometraža', () => {
-    expect(kmDriven([exp({ odometer: 1000 }), exp({ odometer: 1500 }), exp({ odometer: 1200 }), exp({})])).toBe(500)
+    expect(usageInRange([exp({ odometer: 1000 }), exp({ odometer: 1500 }), exp({ odometer: 1200 }), exp({})])).toBe(500)
   })
   it('bez dva različita očitavanja nema odgovora', () => {
-    expect(kmDriven([])).toBeNull()
-    expect(kmDriven([exp({ odometer: 1000 })])).toBeNull()
-    expect(kmDriven([exp({ odometer: 1000 }), exp({ odometer: 1000 })])).toBeNull()
+    expect(usageInRange([])).toBeNull()
+    expect(usageInRange([exp({ odometer: 1000 })])).toBeNull()
+    expect(usageInRange([exp({ odometer: 1000 }), exp({ odometer: 1000 })])).toBeNull()
   })
 })
 
@@ -113,7 +114,7 @@ describe('potrošnja metodom punog rezervoara', () => {
     const list = [fill(11000, 35, true), fill(10000, 40, true), fill(10600, 30, true), fill(10300, 20, false)]
     const s = fuelStats(list)!
     expect(s.liters).toBe(85)
-    expect(s.km).toBe(1000)
+    expect(s.usage).toBe(1000)
     expect(s.per100).toBeCloseTo(8.5, 10)
     expect(s.fills).toBe(3)
   })
@@ -127,7 +128,7 @@ describe('potrošnja metodom punog rezervoara', () => {
   it('delimična sipanja pre prvog punog i posle poslednjeg punog se ne računaju', () => {
     const s = fuelStats([fill(900, 10, false), fill(1000, 50, true), fill(1500, 40, true), fill(1700, 15, false)])!
     expect(s.liters).toBe(40)
-    expect(s.km).toBe(500)
+    expect(s.usage).toBe(500)
   })
 
   it('treba bar dva puna sipanja sa kilometražom', () => {
@@ -194,8 +195,8 @@ describe('pregled', () => {
     expect(s.count).toBe(4)
     expect(s.expensesTotal).toBe(13000) // 8000 + 500 + 4500, unos bez iznosa se ne računa
     expect(s.pending).toBe(1)
-    expect(s.km).toBe(500) // 100500 - 100000 (očitavanje iz septembra ne ulazi)
-    expect(s.costPerKm).toBeCloseTo(26, 10)
+    expect(s.usage).toBe(500) // 100500 - 100000 (očitavanje iz septembra ne ulazi)
+    expect(s.costPerUnit).toBeCloseTo(26, 10)
     expect(s.months).toBe(1)
     expect(s.monthlyAvg).toBe(13000)
   })
@@ -203,8 +204,8 @@ describe('pregled', () => {
   it('period "Sve" obuhvata i starije unose, a prosek je po mesecima od prvog unosa', () => {
     const s = summarize(vehicle, list, 'sve', { includeAmort: false, now: NOW })
     expect(s.expensesTotal).toBe(33000)
-    expect(s.km).toBe(1500) // 100500 - 99000
-    expect(s.costPerKm).toBeCloseTo(22, 10)
+    expect(s.usage).toBe(1500) // 100500 - 99000
+    expect(s.costPerUnit).toBeCloseTo(22, 10)
     expect(s.months).toBe(2) // septembar i oktobar
     expect(s.monthlyAvg).toBe(16500)
   })
@@ -218,14 +219,14 @@ describe('pregled', () => {
     expect(off.amort!.amount).toBeCloseTo(perDay * days, 2)
     expect(off.total).toBe(13000)
     expect(on.total).toBeCloseTo(13000 + perDay * days, 1)
-    expect(on.costPerKm!).toBeGreaterThan(off.costPerKm!)
-    expect(on.costPerKm).toBeCloseTo(on.total / 500, 10)
+    expect(on.costPerUnit!).toBeGreaterThan(off.costPerUnit!)
+    expect(on.costPerUnit).toBeCloseTo(on.total / 500, 10)
   })
 
   it('bez dovoljno kilometraže nema cene po km', () => {
     const s = summarize(vehicle, [exp({ amount: 100 })], 'mesec', { includeAmort: false, now: NOW })
-    expect(s.costPerKm).toBeNull()
-    expect(s.km).toBeNull()
+    expect(s.costPerUnit).toBeNull()
+    expect(s.usage).toBeNull()
   })
 
   it('prazna lista ne ruši ništa', () => {
@@ -290,7 +291,7 @@ describe('grafikoni', () => {
 describe('podsetnici', () => {
   const base: Reminder = {
     id: 'r1', vehicle_id: 'v1', type: 'registracija', title: 'Registracija', due_date: null,
-    interval_km: null, interval_months: null, last_date: null, last_km: null, warn_days: 30, warn_km: 1000,
+    interval_meter: null, interval_months: null, last_date: null, last_meter: null,
   }
   const servis = (p: Partial<Reminder>): Reminder => ({ ...base, type: 'servis', title: 'Servis', ...p })
 
@@ -307,23 +308,23 @@ describe('podsetnici', () => {
     expect(ev('2026-10-01').parts[0]).toBe('Isteklo pre 4 dana (01.10.2026.)')
   })
 
-  it('svaki podsetnik ima svoj rok upozorenja (tahograf 60 dana unapred)', () => {
-    const tahograf: Reminder = { ...base, type: 'tahograf', title: 'Tahograf', due_date: '2026-12-01', warn_days: 60 } // za 57 dana
-    expect(evaluateReminder(tahograf, 0, NOW).status).toBe('soon')
-    expect(evaluateReminder({ ...tahograf, warn_days: 30 }, 0, NOW).status).toBe('ok')
-    expect(evaluateReminder({ ...tahograf, due_date: '2026-12-04' }, 0, NOW).status).toBe('soon') // tačno 60 dana: granica je uključena
-    expect(evaluateReminder({ ...tahograf, due_date: '2026-12-05' }, 0, NOW).status).toBe('ok') // 61 dan
+  it('tehnički pregled, registracija i tahograf: upozorenje počinje tačno 30 dana pre isteka', () => {
+    for (const type of ['tehnicki', 'registracija', 'tahograf'] as const) {
+      const r: Reminder = { ...base, type, title: type }
+      expect(evaluateReminder({ ...r, due_date: '2026-11-04' }, 0, NOW).status, `${type} 30 dana`).toBe('soon')
+      expect(evaluateReminder({ ...r, due_date: '2026-11-05' }, 0, NOW).status, `${type} 31 dan`).toBe('ok')
+    }
+    expect(WARN_DAYS).toBe(30)
   })
 
   it('servis na svakih X km', () => {
-    const r = servis({ interval_km: 10000, last_km: 100000 })
+    const r = servis({ interval_meter: 10000, last_meter: 100000 })
     expect(evaluateReminder(r, 105000, NOW).status).toBe('ok')
     expect(evaluateReminder(r, 109000, NOW).status).toBe('soon') // tačno 1000 km do roka
     expect(evaluateReminder(r, 108999, NOW).status).toBe('ok')
-    expect(evaluateReminder(r, 109500, NOW).kmLeft).toBe(500)
+    expect(evaluateReminder(r, 109500, NOW).meterLeft).toBe(500)
     expect(evaluateReminder(r, 110001, NOW).status).toBe('overdue')
     expect(evaluateReminder(r, 110300, NOW).parts[0]).toBe('Prekoračeno za 300 km (rok 110.000 km)')
-    expect(evaluateReminder({ ...r, warn_km: 3000 }, 107500, NOW).status).toBe('soon')
   })
 
   it('servis na svakih X meseci', () => {
@@ -333,13 +334,13 @@ describe('podsetnici', () => {
   })
 
   it('kad su zadata oba, važi lošiji', () => {
-    const r = servis({ interval_km: 10000, last_km: 100000, interval_months: 12, last_date: '2026-09-01' })
+    const r = servis({ interval_meter: 10000, last_meter: 100000, interval_months: 12, last_date: '2026-09-01' })
     expect(evaluateReminder(r, 111000, NOW).status).toBe('overdue') // km prekoračen, datum je daleko
     expect(evaluateReminder(r, 100000, NOW).status).toBe('ok')
   })
 
   it('servis bez poslednjeg servisa ne puca', () => {
-    const st = evaluateReminder(servis({ interval_km: 10000 }), 5000, NOW)
+    const st = evaluateReminder(servis({ interval_meter: 10000 }), 5000, NOW)
     expect(st.status).toBe('ok')
     expect(st.parts[0]).toMatch(/Upišite poslednji servis/)
   })
@@ -347,7 +348,6 @@ describe('podsetnici', () => {
   it('šabloni: tehnički na 6 meseci, registracija na 12, tahograf na 24', () => {
     const m = (t: string) => presetFor(t as any)
     expect([m('tehnicki').interval_months, m('registracija').interval_months, m('tahograf').interval_months]).toEqual([6, 12, 24])
-    expect(m('tahograf').warn_days).toBeGreaterThan(m('tehnicki').warn_days)
     expect(REMINDER_PRESETS.map((p) => p.type)).toEqual(['tehnicki', 'registracija', 'tahograf', 'servis', 'ostalo'])
   })
 
@@ -369,14 +369,14 @@ describe('podsetnici', () => {
   })
 
   it('"urađeno": servis kreće od danas i tekuće kilometraže', () => {
-    const serv = servis({ interval_km: 10000, interval_months: 12, last_date: '2025-01-01', last_km: 90000 })
+    const serv = servis({ interval_meter: 10000, interval_months: 12, last_date: '2025-01-01', last_meter: 90000 })
     const done = markDone(serv, 101500, '2026-10-05')
     expect(done.last_date).toBe('2026-10-05')
-    expect(done.last_km).toBe(101500)
+    expect(done.last_meter).toBe(101500)
     // servis samo na km ne dira datum
-    const kmOnly = markDone(servis({ interval_km: 10000, last_date: '2025-01-01', last_km: 90000 }), 101500, '2026-10-05')
+    const kmOnly = markDone(servis({ interval_meter: 10000, last_date: '2025-01-01', last_meter: 90000 }), 101500, '2026-10-05')
     expect(kmOnly.last_date).toBe('2025-01-01')
-    expect(kmOnly.last_km).toBe(101500)
+    expect(kmOnly.last_meter).toBe(101500)
   })
 
   it('najhitnije prvo', () => {
@@ -390,8 +390,8 @@ describe('podsetnici', () => {
     const all: Reminder[] = [
       { ...base, id: 'a', vehicle_id: 'v1', type: 'tehnicki', title: 'Tehnički pregled', due_date: '2026-10-20' }, // uskoro
       { ...base, id: 'b', vehicle_id: 'v2', type: 'registracija', due_date: '2026-09-30' }, // isteklo
-      { ...base, id: 'c', vehicle_id: 'v2', type: 'tahograf', title: 'Tahograf', due_date: '2028-01-01', warn_days: 60 }, // daleko
-      servis({ id: 'd', vehicle_id: 'v1', interval_km: 10000, last_km: 100000 }), // km: 105000 -> ok
+      { ...base, id: 'c', vehicle_id: 'v2', type: 'tahograf', title: 'Tahograf', due_date: '2028-01-01' }, // daleko
+      servis({ id: 'd', vehicle_id: 'v1', interval_meter: 10000, last_meter: 100000 }), // km: 105000 -> ok
       { ...base, id: 'x', vehicle_id: 'nepostojece', due_date: '2020-01-01' }, // vozilo obrisano
     ]
     const alerts = collectAlerts(all, [vehicle, v2], { v1: 105000, v2: 3000 }, NOW)
@@ -410,7 +410,7 @@ describe('CSV izvoz', () => {
   it('UTF-8 sa BOM, CRLF i separator ";"', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff)
     expect(csv.endsWith('\r\n')).toBe(true)
-    expect(csv.split('\r\n')[0]).toBe('﻿Datum;Vozilo;Registracija;Vrsta;Iznos (RSD);Kilometraža;Litara;Pun rezervoar;Napomena;Uneo')
+    expect(csv.split('\r\n')[0]).toBe('\uFEFFDatum;Vozilo;Registracija;Vrsta;Iznos (RSD);Kilometraža;Litara;Pun rezervoar;Napomena;Uneo')
   })
 
   it('decimalni zarez, redom po datumu, prazno polje za nepoznat iznos', () => {
@@ -431,5 +431,163 @@ describe('CSV izvoz', () => {
   it('naziv fajla', () => {
     expect(csvFilename({ ...vehicle, name: 'Škoda Octavia (kombi)!' }, new Date('2026-10-05T10:00:00Z'))).toBe('troskovi-koda-octavia-kombi-2026-10-05.csv')
     expect(csvFilename({ ...vehicle, name: '???' }, new Date('2026-10-05T10:00:00Z'))).toBe('troskovi-vozilo-2026-10-05.csv')
+  })
+})
+
+describe('viljuškari: radni sati umesto kilometara', () => {
+  const forklift: Vehicle = {
+    id: 'f1', name: 'Linde H25', plate: null, fuel_type: 'TNG', meter_unit: 'h', initial_odometer: 4200,
+    purchase_date: null, purchase_price: null, amort_years: null,
+  }
+  // sati: puno 4300,0 (baza), delimično 4310,5 (15 L), puno 4320,5 (45 L), servis 4330,0, puno 4340,7 (60 L)
+  const list = [
+    exp({ vehicle_id: 'f1', expense_date: '2026-10-01', category: 'gorivo', amount: 8000, odometer: 4300, liters: 40, full_tank: true }),
+    exp({ vehicle_id: 'f1', expense_date: '2026-10-02', category: 'gorivo', amount: 3000, odometer: 4310.5, liters: 15, full_tank: false }),
+    exp({ vehicle_id: 'f1', expense_date: '2026-10-03', category: 'gorivo', amount: 9000, odometer: 4320.5, liters: 45, full_tank: true }),
+    exp({ vehicle_id: 'f1', expense_date: '2026-10-04', category: 'servis', amount: 20000, odometer: 4330, note: 'Servis' }),
+    exp({ vehicle_id: 'f1', expense_date: '2026-10-05', category: 'gorivo', amount: 12000, odometer: 4340.7, liters: 60, full_tank: true }),
+  ]
+
+  it('sati se čitaju sa jednom decimalom, kilometri su celi brojevi', () => {
+    expect(parseMeter('4321,5', 'h')).toBe(4321.5)
+    expect(parseMeter('4.321,5', 'h')).toBe(4321.5)
+    expect(parseMeter('4321,54', 'h')).toBe(4321.5)
+    expect(parseMeter('4321,56', 'h')).toBe(4321.6)
+    expect(parseMeter('4321', 'h')).toBe(4321)
+    expect(parseMeter('123.456', 'km')).toBe(123456)
+    expect(parseMeter('12,5', 'km')).toBeNull() // kilometri nemaju decimale
+    expect(parseMeter('', 'h')).toBeNull()
+    expect(parseMeter('abc', 'h')).toBeNull()
+  })
+
+  it('prikaz: "4.321,5 h" i "123.456 km"', () => {
+    expect(formatMeter(4321.5, 'h')).toBe('4.321,5 h')
+    expect(formatMeter(4321, 'h')).toBe('4.321,0 h')
+    expect(formatMeter(123456, 'km')).toBe('123.456 km')
+    expect(meterName('h')).toBe('Radni sati')
+    expect(meterName('km')).toBe('Kilometraža')
+  })
+
+  it('odrađeni sati = najveće minus najmanje očitavanje, bez plutajuće greške', () => {
+    expect(usageInRange(list)).toBe(40.7) // 4340,7 - 4300 (u binarnom zapisu 40.69999999999982)
+  })
+
+  it('potrošnja u litrima po satu (metoda punog rezervoara)', () => {
+    const f = fuelStats(list)!
+    expect(f.usage).toBe(40.7)
+    expect(f.liters).toBe(120) // 15 + 45 + 60 (prvo punjenje se ne računa)
+    expect(f.perUnit).toBeCloseTo(120 / 40.7, 10) // 2,95 L/h
+    expect(f.per100).toBeCloseTo((120 / 40.7) * 100, 8)
+  })
+
+  it('cena po satu i sati mesečno', () => {
+    const s = summarize(forklift, list, 'mesec', { includeAmort: false, now: NOW })
+    expect(s.expensesTotal).toBe(52000)
+    expect(s.usage).toBe(40.7)
+    expect(s.costPerUnit).toBeCloseTo(52000 / 40.7, 8) // 1.277,6 RSD/h
+    expect(s.months).toBe(1)
+    expect(s.usagePerMonth).toBeCloseTo(40.7, 10)
+  })
+
+  it('prosečno korišćenje se računa po mesecima obuhvaćenim periodom', () => {
+    const older = [
+      exp({ vehicle_id: 'f1', expense_date: '2026-08-10', category: 'gorivo', amount: 5000, odometer: 4250, liters: 30, full_tank: true }),
+      ...list,
+    ]
+    const s = summarize(forklift, older, 'sve', { includeAmort: false, now: NOW })
+    expect(s.usage).toBe(90.7) // 4340,7 - 4250
+    expect(s.months).toBe(3) // avgust, septembar, oktobar
+    expect(s.usagePerMonth).toBeCloseTo(90.7 / 3, 10)
+  })
+
+  it('poslednja vrednost brojača uzima u obzir početne sate', () => {
+    expect(latestOdometer(forklift, [])).toBe(4200)
+    expect(latestOdometer(forklift, list)).toBe(4340.7)
+  })
+
+  it('servis na svakih 250 radnih sati: upozorenje 50 sati pre roka', () => {
+    const r: Reminder = {
+      id: 'h1', vehicle_id: 'f1', type: 'servis', title: 'Servis 250 h', due_date: null,
+      interval_meter: 250, interval_months: null, last_date: null, last_meter: 4200,
+    }
+    const ev = (hours: number) => evaluateReminder(r, hours, NOW, 'h')
+    expect(ev(4300).status).toBe('ok')
+    expect(ev(4399).status).toBe('ok') // još 51 sat
+    expect(ev(4400).status).toBe('soon') // tačno 50 sati do roka
+    expect(ev(4400.3).meterLeft).toBe(49.7)
+    expect(ev(4451).status).toBe('overdue')
+    expect(ev(4400).parts[0]).toBe('Za 50,0 h (na 4.450,0 h)')
+    expect(ev(4451).parts[0]).toBe('Prekoračeno za 1,0 h (rok 4.450,0 h)')
+    // isti brojevi kod vozila na kilometre bi već bili "uskoro" (prag je 1.000 km)
+    expect(evaluateReminder(r, 4399, NOW, 'km').status).toBe('soon')
+  })
+
+  it('upozorenja za sva vozila koriste jedinicu svakog vozila', () => {
+    const r: Reminder = {
+      id: 'h1', vehicle_id: 'f1', type: 'servis', title: 'Servis 250 h', due_date: null,
+      interval_meter: 250, interval_months: null, last_date: null, last_meter: 4200,
+    }
+    expect(collectAlerts([r], [forklift], { f1: 4399 }, NOW)).toHaveLength(0)
+    expect(collectAlerts([r], [{ ...forklift, meter_unit: 'km' }], { f1: 4399 }, NOW)).toHaveLength(1)
+  })
+
+  it('"urađeno" za servis upisuje trenutne sate', () => {
+    const r: Reminder = {
+      id: 'h1', vehicle_id: 'f1', type: 'servis', title: 'Servis 250 h', due_date: null,
+      interval_meter: 250, interval_months: null, last_date: null, last_meter: 4200,
+    }
+    expect(markDone(r, 4440.7, '2026-10-05').last_meter).toBe(4440.7)
+  })
+
+  it('CSV: naslov kolone i broj decimala zavise od brojača', () => {
+    const csv = buildCsv(list, forklift).split('\r\n')
+    expect(csv[0]).toContain(';Radni sati;')
+    expect(csv[1]).toContain(';4300,0;')
+    expect(csv[2]).toContain(';4310,5;')
+    expect(buildCsv([exp({ odometer: 100500 })], vehicle).split('\r\n')[0]).toContain(';Kilometraža;')
+  })
+})
+
+describe('delovi aplikacije: Vozila (km) i Radne mašine (sati)', () => {
+  const car: Vehicle = { ...vehicle, id: 'c', meter_unit: 'km' }
+  const lift: Vehicle = { ...vehicle, id: 'f', name: 'Viljuškar', meter_unit: 'h' }
+
+  it('deo zavisi samo od brojača', () => {
+    expect(sectionOf('km')).toBe('vozila')
+    expect(sectionOf('h')).toBe('masine')
+    expect(unitOfSection('vozila')).toBe('km')
+    expect(unitOfSection('masine')).toBe('h')
+  })
+
+  it('svaki deo vidi samo svoja vozila', () => {
+    const all = [car, lift, { ...car, id: 'c2' }]
+    expect(vehiclesIn(all, 'vozila').map((v) => v.id)).toEqual(['c', 'c2'])
+    expect(vehiclesIn(all, 'masine').map((v) => v.id)).toEqual(['f'])
+    expect(vehiclesIn([], 'masine')).toEqual([])
+  })
+
+  it('mašine nemaju putarinu, parking i kazne; vozila imaju sve vrste', () => {
+    const ids = CATEGORIES.map((c) => c.id)
+    expect(categoriesFor('vozila', ids)).toEqual(ids)
+    const m = categoriesFor('masine', ids)
+    for (const hidden of ['putarina', 'parking', 'kazne']) expect(m).not.toContain(hidden)
+    for (const kept of ['gorivo', 'servis', 'gume', 'tehnicki', 'registracija', 'osiguranje', 'pranje', 'vanredni', 'ostalo']) {
+      expect(m).toContain(kept)
+    }
+  })
+
+  it('tahograf se nudi samo za vozila', () => {
+    expect(reminderTypesFor('vozila')).toEqual(['tehnicki', 'registracija', 'tahograf', 'servis', 'ostalo'])
+    expect(reminderTypesFor('masine')).not.toContain('tahograf')
+    expect(reminderTypesFor('masine')).toContain('servis')
+  })
+
+  it('natpisi: kilometri za vozila, sati za mašine', () => {
+    expect(SECTION_COPY.vozila.costUnit).toBe('RSD/km')
+    expect(SECTION_COPY.masine.costUnit).toBe('RSD/h')
+    expect(SECTION_COPY.masine.initialMeter).toMatch(/sati/)
+    expect(consumptionUnit('km', 'L')).toBe('L/100 km')
+    expect(consumptionUnit('h', 'L')).toBe('L/h')
+    expect(consumptionUnit('h', 'kWh')).toBe('kWh/h')
   })
 })

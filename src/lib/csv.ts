@@ -1,9 +1,11 @@
-import { formatDate } from './format'
+import { formatDate, meterName } from './format'
 import { categoryLabel, type Expense, type Vehicle } from './types'
 
 // CSV za Excel na srpskom: separator ";", decimalni zarez, UTF-8 sa BOM.
 
-const HEADER = ['Datum', 'Vozilo', 'Registracija', 'Vrsta', 'Iznos (RSD)', 'Kilometraža', 'Litara', 'Pun rezervoar', 'Napomena', 'Uneo']
+const header = (vehicle: Vehicle): string[] => [
+  'Datum', 'Vozilo', 'Registracija', 'Vrsta', 'Iznos (RSD)', meterName(vehicle.meter_unit), 'Litara', 'Pun rezervoar', 'Napomena', 'Uneo',
+]
 
 /** Tekst koji počinje sa = + - @ Excel bi izvršio kao formulu; dodajemo apostrof ispred. */
 function safeText(s: string): string {
@@ -25,15 +27,15 @@ export function buildCsv(expenses: Expense[], vehicle: Vehicle): string {
       safeText(vehicle.plate ?? ''),
       categoryLabel(e.category),
       num(e.amount, 2),
-      num(e.odometer, 0),
+      num(e.odometer, vehicle.meter_unit === 'h' ? 1 : 0),
       num(e.liters, 2),
       e.category === 'gorivo' ? (e.full_tank ? 'Da' : 'Ne') : '',
       safeText((e.note ?? '').replace(/\s+/g, ' ').trim()),
       safeText(e.driver_name ?? ''),
     ].map(cell),
   )
-  const lines = [HEADER.map(cell), ...rows].map((r) => r.join(';'))
-  return '﻿' + lines.join('\r\n') + '\r\n'
+  const lines = [header(vehicle).map(cell), ...rows].map((r) => r.join(';'))
+  return '\uFEFF' + lines.join('\r\n') + '\r\n'
 }
 
 export function downloadCsv(filename: string, content: string): void {

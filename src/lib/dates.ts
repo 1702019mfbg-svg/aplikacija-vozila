@@ -37,3 +37,9 @@ export function monthIndex(iso: string): number {
   const { y, m } = parseISO(iso)
   return y * 12 + (m - 1)
 }
+
+export function addDays(iso: string, days: number): string {
+  const { y, m, d } = parseISO(iso)
+  const dt = new Date(Date.UTC(y, m - 1, d + days))
+  return toISO(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate())
+}

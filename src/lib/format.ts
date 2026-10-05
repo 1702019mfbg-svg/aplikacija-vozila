@@ -1,4 +1,5 @@
 // Srpski format brojeva i datuma: 1.234,56 i 05.10.2026.
+import type { MeterUnit } from './types'
 
 export function formatNumber(n: number, decimals = 2): string {
   if (!Number.isFinite(n)) return '–'
@@ -11,6 +12,13 @@ export function formatNumber(n: number, decimals = 2): string {
 
 export const formatRSD = (n: number, decimals = 2): string => `${formatNumber(n, decimals)} RSD`
 export const formatKm = (n: number): string => `${formatNumber(n, 0)} km`
+
+/** Brojač vozila: "123.456 km" ili "4.321,5 h" (radni sati imaju jednu decimalu). */
+export const formatMeter = (n: number, unit: MeterUnit): string =>
+  unit === 'h' ? `${formatNumber(n, 1)} h` : `${formatNumber(n, 0)} km`
+
+/** Naziv polja: "Kilometraža" ili "Radni sati". */
+export const meterName = (unit: MeterUnit): string => (unit === 'h' ? 'Radni sati' : 'Kilometraža')
 
 /** "1.234,56", "1234.56", "1234,56", "12,5" -> broj; prazno ili neispravno -> null. */
 export function parseDecimal(input: string): number | null {
@@ -39,6 +47,17 @@ export function parseInteger(input: string): number | null {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
+
+/**
+ * Čita brojač iz unosa: kilometri su celi brojevi, a radni sati se zaokružuju na jednu decimalu
+ * (kao na motosatu). Prazno ili neispravno -> null.
+ */
+export function parseMeter(input: string, unit: MeterUnit): number | null {
+  const n = parseDecimal(input)
+  if (n === null) return null
+  if (unit === 'km') return Number.isInteger(n) ? n : null
+  return Math.round(n * 10) / 10
+}
 
 /** Lokalni datum kao YYYY-MM-DD (ne UTC, da "danas" bude tačno posle ponoći). */
 export function todayISO(now = new Date()): string {

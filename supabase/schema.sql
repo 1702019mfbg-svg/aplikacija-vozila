@@ -30,7 +30,9 @@ create table if not exists public.vehicles (
   name             text not null check (length(btrim(name)) between 1 and 80),
   plate            text check (length(plate) <= 20),
   fuel_type        text not null check (fuel_type in ('Dizel', 'Benzin', 'TNG', 'Električno')),
-  initial_odometer integer not null default 0 check (initial_odometer >= 0),
+  -- čime se meri korišćenje: 'km' (automobili, kamioni) ili 'h' (radni sati: viljuškari, mašine)
+  meter_unit       text not null default 'km' check (meter_unit in ('km', 'h')),
+  initial_odometer numeric(10, 1) not null default 0 check (initial_odometer >= 0),
   purchase_date    date,
   purchase_price   numeric(12, 2) check (purchase_price >= 0),
   amort_years      integer check (amort_years between 1 and 50),
@@ -71,7 +73,7 @@ create table if not exists public.expenses (
                  'gorivo', 'servis', 'gume', 'registracija', 'tehnicki', 'osiguranje',
                  'putarina', 'parking', 'pranje', 'kazne', 'vanredni', 'ostalo')),
   amount       numeric(12, 2) check (amount >= 0),   -- NULL = iznos još nije upisan
-  odometer     integer check (odometer >= 0),
+  odometer     numeric(10, 1) check (odometer >= 0),   -- km ili radni sati, zavisno od vozila
   liters       numeric(8, 2) check (liters > 0),
   full_tank    boolean,
   note         text check (length(note) <= 500),
@@ -93,15 +95,13 @@ create table if not exists public.reminders (
   type            text not null check (type in ('tehnicki', 'registracija', 'tahograf', 'servis', 'ostalo')),
   title           text not null check (length(btrim(title)) between 1 and 80),
   due_date        date,                               -- datum isteka (tehnički, registracija, tahograf...)
-  interval_km     integer check (interval_km > 0),    -- servis: na svakih X km
-  interval_months integer check (interval_months > 0),-- servis: na svakih X meseci; ostali: na koliko se obnavlja
-  last_date       date,                               -- servis: poslednji put
-  last_km         integer check (last_km >= 0),
-  warn_days       integer not null default 30 check (warn_days between 0 and 365),
-  warn_km         integer not null default 1000 check (warn_km between 0 and 100000),
+  interval_meter  numeric(10, 1) check (interval_meter > 0),  -- servis: na svakih X km (ili radnih sati)
+  interval_months integer check (interval_months > 0),        -- servis: na svakih X meseci; ostali: na koliko se obnavlja
+  last_date       date,                                       -- servis: poslednji put
+  last_meter      numeric(10, 1) check (last_meter >= 0),
   created_at      timestamptz not null default now(),
   constraint reminders_datum  check (type = 'servis' or due_date is not null),
-  constraint reminders_servis check (type <> 'servis' or interval_km is not null or interval_months is not null)
+  constraint reminders_servis check (type <> 'servis' or interval_meter is not null or interval_months is not null)
 );
 create index if not exists reminders_vehicle_idx on public.reminders (vehicle_id);
 
@@ -193,7 +193,7 @@ returns text language sql immutable set search_path = '' as $$
 $$;
 
 create or replace function private.last_odometer(p_vehicle_id uuid)
-returns integer language sql stable security definer set search_path = '' as $$
+returns numeric language sql stable security definer set search_path = '' as $$
   select greatest(v.initial_odometer, coalesce((select max(e.odometer) from public.expenses e where e.vehicle_id = v.id), 0))
   from public.vehicles v where v.id = p_vehicle_id
 $$;
@@ -274,6 +274,7 @@ begin
     'vehicles', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', v.id, 'name', v.name, 'plate', v.plate, 'fuel_type', v.fuel_type,
+               'meter_unit', v.meter_unit,
                'last_odometer', private.last_odometer(v.id)) order by v.name)
         from public.driver_vehicles dv
         join public.vehicles v on v.id = dv.vehicle_id
@@ -283,14 +284,14 @@ $$;
 
 create or replace function public.driver_add_expense(
   p_code text, p_pin text, p_id uuid, p_vehicle_id uuid, p_date date, p_category text,
-  p_amount numeric, p_odometer integer, p_liters numeric, p_full_tank boolean, p_note text)
+  p_amount numeric, p_odometer numeric, p_liters numeric, p_full_tank boolean, p_note text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   c record;
   v_name text;
   v_note text := nullif(btrim(coalesce(p_note, '')), '');
   v_today date := (now() at time zone 'Europe/Belgrade')::date;
-  v_last integer;
+  v_last numeric;
 begin
   select * into c from private.check_driver(p_code, p_pin);
   if c.o_status <> 'ok' then
@@ -442,14 +443,14 @@ $$;
 
 revoke all on function public.driver_login(text, text)                                   from public, anon, authenticated;
 revoke all on function public.driver_add_expense(text, text, uuid, uuid, date, text,
-                                                 numeric, integer, numeric, boolean, text) from public, anon, authenticated;
+                                                 numeric, numeric, numeric, boolean, text) from public, anon, authenticated;
 revoke all on function public.create_driver(text, text, uuid[])                          from public, anon, authenticated;
 revoke all on function public.set_driver_pin(uuid, text, boolean)                        from public, anon, authenticated;
 revoke all on function public.set_driver_vehicles(uuid, uuid[])                          from public, anon, authenticated;
 
 grant execute on function public.driver_login(text, text)                                to anon, authenticated;
 grant execute on function public.driver_add_expense(text, text, uuid, uuid, date, text,
-                                                    numeric, integer, numeric, boolean, text) to anon, authenticated;
+                                                    numeric, numeric, numeric, boolean, text) to anon, authenticated;
 grant execute on function public.create_driver(text, text, uuid[])                       to authenticated;
 grant execute on function public.set_driver_pin(uuid, text, boolean)                     to authenticated;
 grant execute on function public.set_driver_vehicles(uuid, uuid[])                       to authenticated;
