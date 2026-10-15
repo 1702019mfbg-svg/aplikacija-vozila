@@ -1,5 +1,5 @@
 import type {
-  Category, Driver, DriverSession, Expense, ExpenseInput, FuelType, MeterUnit, Reminder, ReminderInput, Vehicle,
+  Category, Driver, DriverSession, Expense, ExpenseInput, FuelPrice, FuelType, MeterUnit, Reminder, ReminderInput, Vehicle,
 } from './types'
 
 /** Greška sa kodom i porukom na srpskom, spremnom za prikaz korisniku. */
@@ -74,6 +74,11 @@ export interface OwnerApi {
   listReminders(): Promise<Reminder[]>
   saveReminder(input: ReminderInput, id?: string): Promise<Reminder>
   deleteReminder(id: string): Promise<void>
+
+  /** Cene goriva (vidi ih samo vlasnik). Nova cena važi od datuma; za isti datum se menja. */
+  listFuelPrices(): Promise<FuelPrice[]>
+  setFuelPrice(fuel: FuelType, validFrom: string, price: number): Promise<void>
+  deleteFuelPrice(id: string): Promise<void>
 }
 
 /** Vozač nema nalog: ima samo ove dve radnje. Ne može da pročita nijedan podatak. */

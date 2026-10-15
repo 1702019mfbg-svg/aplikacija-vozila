@@ -105,6 +105,26 @@ create table if not exists public.reminders (
 );
 create index if not exists reminders_vehicle_idx on public.reminders (vehicle_id);
 
+-- Cena goriva po vrsti goriva i datumu "važi od" (npr. nova cena svake nedelje).
+-- Sipanja bez upisanog iznosa se obračunavaju: litri x cena koja je važila na dan sipanja.
+create table if not exists public.fuel_prices (
+  id         uuid primary key default gen_random_uuid(),
+  owner_id   uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  fuel_type  text not null check (fuel_type in ('Dizel', 'Benzin', 'TNG', 'Električno')),
+  valid_from date not null,
+  price      numeric(10, 2) not null check (price > 0 and price < 100000),  -- RSD po litru (po kWh za struju)
+  created_at timestamptz not null default now(),
+  unique (owner_id, fuel_type, valid_from)
+);
+create index if not exists fuel_prices_owner_idx on public.fuel_prices (owner_id, fuel_type, valid_from desc);
+
+-- Služi funkciji keepalive() (da se besplatan projekat ne pauzira zbog neaktivnosti).
+create table if not exists private.heartbeat (
+  id        integer primary key default 1 check (id = 1),
+  pinged_at timestamptz not null default now()
+);
+insert into private.heartbeat (id) values (1) on conflict do nothing;
+
 -- Poslednja poznata kilometraža svakog vozila (za upozorenja o servisu na svim vozilima).
 -- security_invoker: RLS se primenjuje kao da korisnik sam čita tabele, pa svako vidi samo svoja vozila.
 create or replace view public.vehicle_status with (security_invoker = true) as
@@ -122,7 +142,7 @@ create or replace view public.vehicle_status with (security_invoker = true) as
 grant usage on schema public to anon, authenticated;
 
 revoke all on public.vehicles, public.drivers, public.driver_vehicles,
-              public.expenses, public.reminders, public.vehicle_status
+              public.expenses, public.reminders, public.vehicle_status, public.fuel_prices
   from public, anon, authenticated;
 
 grant select, insert, update, delete on public.vehicles        to authenticated;
@@ -137,6 +157,8 @@ grant update (expense_date, category, amount, odometer, liters, full_tank, note)
   on public.expenses to authenticated;
 grant select, insert, update, delete on public.reminders       to authenticated;
 grant select                         on public.vehicle_status  to authenticated;
+-- cene goriva se upisuju samo preko funkcije set_fuel_price:
+grant select, delete                 on public.fuel_prices     to authenticated;
 
 -- ---------------------------------------------------------------------
 -- Row Level Security: vlasnik vidi samo svoje
@@ -147,6 +169,7 @@ alter table public.drivers         enable row level security;
 alter table public.driver_vehicles enable row level security;
 alter table public.expenses        enable row level security;
 alter table public.reminders       enable row level security;
+alter table public.fuel_prices     enable row level security;
 
 drop policy if exists vehicles_owner on public.vehicles;
 create policy vehicles_owner on public.vehicles for all to authenticated
@@ -177,6 +200,11 @@ drop policy if exists expenses_owner on public.expenses;
 create policy expenses_owner on public.expenses for all to authenticated
   using (exists (select 1 from public.vehicles v where v.id = vehicle_id and v.owner_id = (select auth.uid())))
   with check (exists (select 1 from public.vehicles v where v.id = vehicle_id and v.owner_id = (select auth.uid())));
+
+drop policy if exists fuel_prices_owner on public.fuel_prices;
+create policy fuel_prices_owner on public.fuel_prices for all to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (owner_id = (select auth.uid()));
 
 drop policy if exists reminders_owner on public.reminders;
 create policy reminders_owner on public.reminders for all to authenticated
@@ -436,6 +464,53 @@ begin
 end
 $$;
 
+-- Upisuje cenu goriva: nova cena važi od datuma; ako za taj datum već postoji, menja se.
+create or replace function public.set_fuel_price(p_fuel_type text, p_valid_from date, p_price numeric)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare
+  uid uuid := auth.uid();
+  v_id uuid;
+begin
+  if uid is null then raise exception 'not_authenticated'; end if;
+  if p_fuel_type is null or p_fuel_type not in ('Dizel', 'Benzin', 'TNG', 'Električno') then
+    raise exception 'bad_fuel';
+  end if;
+  if p_price is null or p_price <= 0 or p_price >= 100000 then raise exception 'bad_price'; end if;
+  if p_valid_from is null or p_valid_from < date '2020-01-01'
+     or p_valid_from > (now() at time zone 'Europe/Belgrade')::date + 366 then
+    raise exception 'bad_date';
+  end if;
+
+  insert into public.fuel_prices (owner_id, fuel_type, valid_from, price)
+  values (uid, p_fuel_type, p_valid_from, round(p_price, 2))
+  on conflict (owner_id, fuel_type, valid_from) do update set price = excluded.price
+  returning id into v_id;
+  return v_id;
+end
+$$;
+
+-- ---------------------------------------------------------------------
+-- Održavanje budnim
+-- Besplatan Supabase projekat se pauzira posle oko 7 dana bez aktivnosti. Aplikacija na Vercel-u
+-- jednom dnevno (api/keepalive.js) poziva ovu funkciju. Ne vraća nikakve podatke osim vremena
+-- poslednjeg poziva, a upis radi najviše jednom na sat.
+-- ---------------------------------------------------------------------
+
+create or replace function public.keepalive()
+returns timestamptz language plpgsql security definer set search_path = '' as $$
+declare
+  t timestamptz;
+begin
+  update private.heartbeat set pinged_at = now()
+   where id = 1 and pinged_at < now() - interval '1 hour'
+  returning pinged_at into t;
+  if t is null then
+    select h.pinged_at into t from private.heartbeat h where h.id = 1;
+  end if;
+  return t;
+end
+$$;
+
 -- ---------------------------------------------------------------------
 -- Ko sme da poziva koju funkciju
 -- (Postgres po defaultu dozvoljava svima, pa prvo sve oduzmemo)
@@ -447,6 +522,8 @@ revoke all on function public.driver_add_expense(text, text, uuid, uuid, date, t
 revoke all on function public.create_driver(text, text, uuid[])                          from public, anon, authenticated;
 revoke all on function public.set_driver_pin(uuid, text, boolean)                        from public, anon, authenticated;
 revoke all on function public.set_driver_vehicles(uuid, uuid[])                          from public, anon, authenticated;
+revoke all on function public.set_fuel_price(text, date, numeric)                        from public, anon, authenticated;
+revoke all on function public.keepalive()                                                from public, anon, authenticated;
 
 grant execute on function public.driver_login(text, text)                                to anon, authenticated;
 grant execute on function public.driver_add_expense(text, text, uuid, uuid, date, text,
@@ -454,3 +531,5 @@ grant execute on function public.driver_add_expense(text, text, uuid, uuid, date
 grant execute on function public.create_driver(text, text, uuid[])                       to authenticated;
 grant execute on function public.set_driver_pin(uuid, text, boolean)                     to authenticated;
 grant execute on function public.set_driver_vehicles(uuid, uuid[])                       to authenticated;
+grant execute on function public.set_fuel_price(text, date, numeric)                     to authenticated;
+grant execute on function public.keepalive()                                             to anon, authenticated;

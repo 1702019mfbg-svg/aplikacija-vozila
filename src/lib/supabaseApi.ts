@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { ApiError, driverError, type Api, type DriverEntry, type OwnerUser, type VehicleInput } from './api'
 import { config } from './config'
-import type { Driver, DriverSession, DriverVehicle, Expense, ExpenseInput, Reminder, ReminderInput, Vehicle } from './types'
+import type { Driver, DriverSession, DriverVehicle, Expense, ExpenseInput, FuelPrice, Reminder, ReminderInput, Vehicle } from './types'
 
 type PgError = { message?: string; code?: string; details?: string }
 
@@ -24,6 +24,9 @@ function translate(error: PgError): ApiError {
   if (msg.includes('bad_pin')) return new ApiError('bad_pin', 'PIN mora imati od 4 do 8 cifara.')
   if (msg.includes('bad_name')) return new ApiError('bad_name', 'Ime nije ispravno.')
   if (msg.includes('bad_vehicle')) return new ApiError('bad_vehicle', 'Izabrano vozilo nije ispravno.')
+  if (msg.includes('bad_price')) return new ApiError('bad_price', 'Cena nije ispravna.')
+  if (msg.includes('bad_fuel')) return new ApiError('bad_fuel', 'Vrsta goriva nije ispravna.')
+  if (msg.includes('bad_date')) return new ApiError('bad_date', 'Datum nije ispravan.')
   if (msg.includes('not_found')) return new ApiError('not_found', 'Stavka nije pronađena.')
   if (/expenses_note_required/.test(msg)) return new ApiError('note_required', 'Za "Ostalo" i "Vanredni trošak" upišite opis.')
   if (/expenses_fuel_only/.test(msg)) return new ApiError('fuel_only', 'Litri se upisuju samo za gorivo.')
@@ -206,6 +209,19 @@ export function createSupabaseApi(): Api {
       },
       async deleteReminder(id) {
         failOnError(await client.from('reminders').delete().eq('id', id))
+      },
+
+      async listFuelPrices() {
+        const rows = check(
+          await client.from('fuel_prices').select('id,fuel_type,valid_from,price').order('valid_from', { ascending: false }),
+        )
+        return rows.map((r: any): FuelPrice => ({ id: r.id, fuel_type: r.fuel_type, valid_from: r.valid_from, price: Number(r.price) }))
+      },
+      async setFuelPrice(fuel, validFrom, price) {
+        failOnError(await client.rpc('set_fuel_price', { p_fuel_type: fuel, p_valid_from: validFrom, p_price: price }))
+      },
+      async deleteFuelPrice(id) {
+        failOnError(await client.from('fuel_prices').delete().eq('id', id))
       },
     },
 

@@ -1035,9 +1035,13 @@ input[type='checkbox'] {
 .row-sub {
   color: var(--muted);
   font-size: 0.85rem;
+  /* najviše dva reda: na telefonu staju datum, brojač, litri, cena i ko je uneo */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .row-amount {
   font-variant-numeric: tabular-nums;
@@ -1122,6 +1126,171 @@ input[type='checkbox'] {
   gap: 8px;
   color: var(--ink-2);
   font-weight: 600;
+}
+
+/* izbor vozila: veliki, razmaknuti redovi da se ne pogodi pogrešno vozilo */
+.pick-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.pick-title {
+  color: var(--eyebrow);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.picks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 80px;
+  padding: 14px 18px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+}
+.pick:hover {
+  border-color: var(--brand);
+}
+.pick > svg {
+  color: var(--muted);
+}
+.pick-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--brand);
+}
+.pick-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.pick-text strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.pick-text small {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.vehicle-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+}
+.vehicle-bar .pick-text {
+  flex: 1 1 auto;
+}
+.vehicle-bar .pick-text small:first-child {
+  color: var(--eyebrow);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.vehicle-bar .btn {
+  flex: none;
+  min-height: 42px;
+  padding: 8px 18px;
+}
+
+/* cena goriva */
+.price-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+.price-card-main {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.price-card-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.price-card-value small {
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.price-old,
+.price-current {
+  margin-left: 8px;
+}
+.price-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+.price-history-title {
+  margin: 4px 0 8px;
+  font-size: 1.15rem;
+}
+.price-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'price del' 'date del';
+  align-items: center;
+  column-gap: 12px;
+  min-height: 62px;
+  padding: 8px 8px 8px 20px;
+}
+.price-row > :nth-child(1) {
+  grid-area: price;
+}
+.price-row > :nth-child(2) {
+  grid-area: date;
+  font-size: 0.85rem;
+}
+.price-row > .icon-btn {
+  grid-area: del;
+}
+.row-calc {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
 }
 .driver-question {
   font-size: 2rem;

@@ -4,7 +4,9 @@ Aplikacija za praćenje **stvarnog troška vozila i radnih mašina** (viljuškar
 
 - **Vlasnik** (vi) vidi sve: cene, zbirove, grafikone, cenu po kilometru / po radnom satu, potrošnju.
 - **Vozač** može da upiše bilo koji trošak, ali **ne vidi ništa od toga**: ni ranije unose, ni iznose, ni zbirove. Prijavljuje se kodom i PIN-om, bez naloga.
+- **Cenu goriva** upisujete jednom nedeljno, a iznos svakog sipanja koje nema upisan iznos aplikacija **sama obračuna** (litri × cena).
 - Radi na telefonu i računaru, ceo na srpskom (latinica), i može da se **instalira na telefon besplatno** (bez Play Store-a i App Store-a).
+- Sama održava Supabase bazu „budnom“, da je besplatan plan ne pauzira (vidi **Da baza ne zaspi**).
 
 Dva dela aplikacije, prekidač je na vrhu ekrana:
 
@@ -78,6 +80,19 @@ U Supabase-u otvorite **Project Settings** (zupčanik) → **API Keys** (ili **A
 1. Otvorite adresu iz Koraka 5, ostanite na kartici **Vlasnik** i prijavite se emailom i lozinkom iz Koraka 3.
 2. Prvo dodajte vozilo ili mašinu (kartica **Vozila**, odnosno **Mašine**).
 3. Zatim dodajte vozače (kartica **Vozači**).
+4. Na **Pregledu** kliknite **Upiši cenu** u kartici **Cena goriva** i upišite današnju cenu goriva (vidi **Cena goriva i automatski obračun**).
+
+---
+
+## Ažuriranje (kad dobijete novu verziju)
+
+Redosled je važan: **prvo baza, pa aplikacija**. Tako stara verzija radi sve vreme, a nova nikad ne naiđe na bazu koja nije spremna.
+
+1. **Baza:** u Supabase-u otvorite **SQL Editor → New query**, nalepite **ceo** sadržaj fajla `supabase/schema.sql` sa GitHub-a (ikonica **Copy raw file**) i kliknite **Run**. Treba da piše *Success. No rows returned*. Skripta samo dodaje novo i zamenjuje sopstvena pravila pristupa. **Podaci ostaju netaknuti**, a pokretanje više puta je bezbedno.
+2. **Aplikacija:** spojite novu verziju u granu `main` (isto kao Korak 0, ili recite Claude-u „spoji“). Vercel posle 1 do 2 minuta sam objavi novu verziju.
+3. **Telefon:** zatvorite aplikaciju i otvorite je ponovo. Instalirana aplikacija se sama osveži.
+
+> Ako nova verzija stigne pre nego što pokrenete ažuriranu šemu, aplikacija i dalje radi kao do sada. Samo kartica **Cena goriva** na Pregledu piše da baza još nije ažurirana, a dugme za cenu se pojavljuje čim pokrenete `supabase/schema.sql`.
 
 ---
 
@@ -103,12 +118,15 @@ Ako imate domen, npr. `vasdomen.rs`, možete da dobijete adresu `vozila.vasdomen
 
 1. U kartici **Vozači** kliknite **Dodaj vozača**: ime, **PIN** (4 do 8 cifara) i vozila/mašine koje sme da koristi.
 2. Prikazaće se **link** i **kod**. Vozaču pošaljite link (npr. Viber-om), a **PIN poslednje i posebnom porukom**. Link sam upisuje kod, pa vozač kuca samo PIN.
-3. Vozač bira šta upisuje (Gorivo, Putarina, Servis, Vanredni trošak, Ostalo, Parking, Pranje vozila, Tehnički pregled, Registracija, Gume, Kazne, Osiguranje), popunjava obrazac i čuva.
+3. Posle prijave vozač **prvo bira vozilo** (ili mašinu) za koje upisuje, da ne bi pogrešio. Tek kad dodirne vozilo, nudi mu se šta upisuje (Gorivo, Putarina, Servis, Vanredni trošak, Ostalo, Parking, Pranje vozila, Tehnički pregled, Registracija, Gume, Kazne, Osiguranje). Popunjava obrazac i čuva.
+4. Izabrano vozilo stoji na vrhu ekrana, sa dugmetom **Promeni**. Posle svakog unosa može da upiše **novi unos** za isto vozilo, da izabere **drugo vozilo** ili da se odjavi.
 
-Šta vozač **ne** može: da vidi ranije unose, iznose, zbirove, grafikone, cenu po km, CSV ili podsetnike. To nije samo sakriveno u izgledu: baza mu ne dozvoljava da pročita ništa (provereno automatskim testovima).
+Vozač koji ima **samo jedno vozilo** ne bira ništa (ne može da pogreši): odmah vidi svoje vozilo. Viljuškari i ostale mašine su u izboru odvojeni od vozila, a za njih se upisuju radni sati umesto kilometara.
+
+Šta vozač **ne** može: da vidi ranije unose, iznose, zbirove, grafikone, cenu po km, cenu goriva, CSV ili podsetnike. To nije samo sakriveno u izgledu: baza mu ne dozvoljava da pročita ništa (provereno automatskim testovima).
 
 Šta treba da znate:
-- Vozač ne mora da upiše iznos (npr. ako ne zna). Takav unos vidite oznakom **bez iznosa** i dopunjujete ga (na pregledu stoji traka „X unosa čeka iznos“).
+- Vozač ne mora da upiše iznos (npr. ako ne zna). Takav unos vidite oznakom **bez iznosa** i dopunjujete ga (na pregledu stoji traka „X unosa čeka iznos“). Za **gorivo** vozač upisuje samo litre, a iznos obračunavate vi preko cene goriva (vidi dole).
 - Vozač naravno zna ono što je sam upravo ukucao. Aplikacija mu ne pokazuje ni istoriju ni zbirove.
 - Gorivo za vozača traži kilometre (ili radne sate) i količinu. Kilometraža ne može biti manja od poslednje upisane.
 - Datum unosa: do 14 dana unazad.
@@ -119,6 +137,24 @@ Ako imate domen, npr. `vasdomen.rs`, možete da dobijete adresu `vozila.vasdomen
 
 ---
 
+## Cena goriva i automatski obračun
+
+Iznos goriva ne morate da upisujete. Dovoljno je da povremeno upišete **cenu goriva**:
+
+1. Na **Pregledu** je kartica **Cena goriva** (za vrstu goriva izabranog vozila ili mašine). Kliknite **Nova cena** (ili **Upiši cenu**).
+2. Upišite **cenu po litru** (za struju po kWh). Polje **Važi od** je već ponedeljak ove nedelje, pa cenu možete da upisujete jednom nedeljno. Istorija cena je u istom prozoru, svaku možete da obrišete.
+3. Svako sipanje **bez upisanog iznosa** (npr. vozač je upisao samo litre) dobija iznos = **litri × cena koja je važila na dan sipanja**. U listi unosa ispod iznosa piše **obračun**, a stoji i cena po litru.
+
+Pravila:
+- **Iznos koji sami upišete uvek ima prednost** nad obračunom. Pri unosu goriva iznos nije obavezan, a ispod polja piše koliko će iznositi obračun.
+- Obračunat iznos se **ne upisuje** u bazu, već se računa iznova. Zato se promenom ili brisanjem cene sva sipanja odmah preračunaju, bez ikakvog ručnog posla.
+- Cena se čuva posebno za svaku vrstu goriva (Dizel, Benzin, TNG, Električno). Viljuškar na TNG-u koristi cenu TNG-a.
+- Za dane **pre prve upisane cene** iznos ostaje prazan (**bez iznosa**). Na kartici piše koliko sipanja nema ni iznos ni cenu. Upišite cenu sa ranijim datumom u polju **Važi od** i ona će biti obračunata.
+- Kartica upozorava kad je cena starija od 7 dana („stara N dana“).
+- Obračunati iznosi ulaze u zbirove, cenu po km i grafikone. U CSV izvozu su kolone **Cena po litru** i **Iznos obračunat po ceni goriva** (piše **Da** kad iznos nije upisan, već obračunat).
+
+---
+
 ## Šta aplikacija računa
 
 - **Cena po km (ili po satu)** = zbir troškova u periodu / pređeni km (ili odrađeni sati). Pređeno = najveća minus najmanja upisana vrednost brojača u tom periodu. Potrebna su bar dva unosa sa očitavanjem.
@@ -126,7 +162,7 @@ Ako imate domen, npr. `vasdomen.rs`, možete da dobijete adresu `vozila.vasdomen
 - **Mesečni prosek** = ukupno / broj meseci obuhvaćenih periodom.
 - **Amortizacija** (opciono, po vozilu): nabavna cena se ravnomerno raspoređuje po danima na izabrani broj godina. Prikazuje se posebno, a kvačicom „Uračunaj amortizaciju“ ulazi u cenu po km.
 - Periodi: **Mesec** (tekući), **Godina** (tekuća), **12 meseci**, **Sve**.
-- Unosi bez iznosa se ne računaju u zbir, dok ih ne dopunite.
+- Unosi bez iznosa se ne računaju u zbir, dok ih ne dopunite. Izuzetak je **gorivo** kad postoji cena goriva za taj dan: tada se iznos obračunava sam (vidi **Cena goriva i automatski obračun**).
 
 ## Podsetnici
 
@@ -154,9 +190,22 @@ Kartica **Unosi → Izvezi CSV**: separator `;`, decimalni zarez, UTF-8 sa BOM-o
 
 ---
 
+## Da baza ne zaspi
+
+Besplatan Supabase **pauzira projekat** posle oko 7 dana bez aktivnosti i šalje obaveštenje o tome. Zato aplikacija sama „budi“ bazu:
+
+- **Jednom dnevno** (oko 5 ujutru po UTC vremenu) Vercel automatski pokreće zakazani posao **`/api/keepalive`**. On pozove Supabase i upiše vreme poslednjeg poziva u jednu malu tabelu. To je prava aktivnost na bazi, a ne samo čitanje.
+- Ne treba ništa da podešavate: posao je već u fajlu `vercel.json`, a koristi iste dve vrednosti (`VITE_SUPABASE_URL` i `VITE_SUPABASE_ANON_KEY`) koje ste već upisali na Vercel-u.
+- **Provera:** otvorite `https://vasa-adresa.vercel.app/api/keepalive`. Treba da piše `{"ok":true,...}`. Ako piše `ok:false`, poruka kaže šta nedostaje (obično vrednosti iz Koraka 5). Na Vercel-u se rad posla vidi u **projekat → Settings → Cron Jobs** (Hobby plan dozvoljava jednom dnevno, što je dovoljno).
+- Baza se pri tome ne opterećuje: upis se obavlja najviše jednom na sat, bez obzira koliko puta se adresa otvori.
+
+**Ako je projekat već pauziran** (u Supabase-u piše *Project paused*, a aplikacija ne može da se poveže): otvorite projekat u Supabase-u i kliknite **Restore project**, pa sačekajte nekoliko minuta. Podaci su sačuvani, ali Supabase dozvoljava vraćanje pauziranog projekta samo ograničeno vreme (oko 90 dana), pa nemojte dugo čekati. Posle toga ga aplikacija sama drži budnim.
+
+---
+
 ## Dobro je znati
 
-- **Besplatan Supabase** pauzira projekat posle oko 7 dana bez ikakvog korišćenja (vraća se jednim klikom u Supabase-u). Besplatan plan nema automatske rezervne kopije, pa **povremeno izvezite CSV**.
+- **Besplatan Supabase** nema automatske rezervne kopije, pa **povremeno izvezite CSV**. Pauziranje zbog neaktivnosti je rešeno automatskim održavanjem (vidi iznad).
 - **Vercel Hobby** plan je, po uslovima korišćenja, namenjen nekomercijalnoj upotrebi. Ako aplikaciju koristi firma, proverite uslove; isti projekat radi i na drugim besplatnim hostinzima za statične sajtove.
 - Zaboravili ste lozinku vlasnika: Supabase → **Authentication → Users** → vaš nalog → **Send password recovery** ili postavite novu lozinku. Lozinku možete da promenite i u aplikaciji (meni ⋮ → Promena lozinke).
 - Poruka **„Baza nije podešena“**: nije pokrenut Korak 2.
@@ -172,12 +221,14 @@ Stack: React 19 + Vite + TypeScript, Supabase (Auth + Postgres + RLS), PWA (`vit
 npm install
 npm run dev          # sa pravim Supabase-om (.env.local prema .env.example)
 npm run dev:demo     # probna verzija sa podacima u memoriji (bez Supabase-a)
-npm test             # 109 testova: proračuni i bezbednost baze
+npm test             # 141 test: proračuni, bezbednost baze i održavanje budnim
 npm run build        # provera tipova + produkcioni build
 ```
 
 - **Bezbednosni model** (`supabase/schema.sql`): vlasnik je Supabase korisnik, a RLS dozvoljava samo redove čiji je on vlasnik. Vozač nema nalog: `anon` rola nema pristup nijednoj tabeli, već samo dvema `SECURITY DEFINER` funkcijama (`driver_login`, `driver_add_expense`) uz kod + PIN. PIN je bcrypt hash u šemi `private`, koju API ne izlaže. Posle 5 grešaka sledi zaključavanje 15 minuta, a brojač se čuva i pri neuspehu (funkcije vraćaju status umesto da bacaju grešku).
-- **Testovi baze** (`test/rls.test.ts`) pokreću pravi Postgres (PGlite) sa tom šemom i proveravaju: izolaciju vlasnika, da vozač ne može da pročita ništa, zaključavanje PIN-a, validaciju unosa i radne sate.
+- **Cena goriva:** tabela `fuel_prices` (po vrsti goriva i datumu „važi od“) vidljiva je samo vlasniku, a upis ide kroz funkciju `set_fuel_price` (proverava vrstu, cenu i datum). Iznos sipanja bez iznosa se **ne čuva**, već se računa pri čitanju (`applyFuelPrices` u `src/lib/calc.ts`: litri × cena koja je važila na dan sipanja), pa promena cene preračuna sve unazad. Vozač nema pristup cenama.
+- **Održavanje budnim:** `api/keepalive.js` (Vercel funkcija) poziva javnu funkciju `public.keepalive()`, koja najviše jednom na sat ažurira red u `private.heartbeat`. Zakazan je u `vercel.json` (`crons`, jednom dnevno, što dozvoljava i Hobby plan).
+- **Testovi baze** (`test/rls.test.ts`) pokreću pravi Postgres (PGlite) sa tom šemom i proveravaju: izolaciju vlasnika, da vozač ne može da pročita ništa, zaključavanje PIN-a, validaciju unosa, radne sate, cene goriva i ponovno pokretanje šeme nad bazom koja već ima podatke.
 - **Izgled** je izdvojen: boje, fontovi i zaobljenja su u `src/theme.css`, a raspored u `src/styles.css`. Izgled prati sajt farmerkop.rs (krem podloga, tamnozelena, smeđe oznake, fontovi Bricolage Grotesque i Work Sans, dugmad u obliku pilule), uz akvamarin sa rosysoil.com za grafikone. Boje grafikona su proverene za daltoniste, u svetlom i tamnom režimu.
 - **Struktura:** `src/lib` (proračuni, formati, API sloj), `src/components`, `src/pages`, `src/hooks`, `test`, `supabase`.
 - Podaci iz baze se ne keširaju u service worker-u (kešira se samo sama aplikacija).

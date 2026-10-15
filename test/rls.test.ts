@@ -469,3 +469,128 @@ describe('ograničenja tabele', () => {
     ))).rejects.toThrow(/expenses_fuel_only/)
   })
 })
+
+describe('cena goriva', () => {
+  const price = (fuel: string, from: string, p: number) =>
+    driverCall('set_fuel_price', [fuel, from, p]) as Promise<string>
+
+  it('vlasnik upisuje cenu, a svoje cene vidi u listi', async () => {
+    await as(A, () => price('Dizel', '2026-10-05', 190))
+    await as(A, () => price('Dizel', '2026-10-12', 195.5))
+    await as(A, () => price('TNG', '2026-10-05', 98))
+    const rows = await as(A, () => q<any>(`select fuel_type, valid_from::text as valid_from, price from fuel_prices order by fuel_type, valid_from`))
+    expect(rows.map((r) => [r.fuel_type, r.valid_from, Number(r.price)])).toEqual([
+      ['Dizel', '2026-10-05', 190], ['Dizel', '2026-10-12', 195.5], ['TNG', '2026-10-05', 98],
+    ])
+  })
+
+  it('ista vrsta goriva na isti datum se menja, ne pravi se duplikat', async () => {
+    await as(A, () => price('Dizel', '2026-10-12', 197))
+    const rows = await as(A, () => q<any>(`select price from fuel_prices where fuel_type = 'Dizel' and valid_from = '2026-10-12'`))
+    expect(rows).toHaveLength(1)
+    expect(Number(rows[0].price)).toBe(197)
+  })
+
+  it('cena se zaokružuje na pare', async () => {
+    await as(A, () => price('Benzin', '2026-10-05', 201.456))
+    const rows = await as(A, () => q<any>(`select price from fuel_prices where fuel_type = 'Benzin'`))
+    expect(Number(rows[0].price)).toBe(201.46)
+  })
+
+  it('vlasnik B ne vidi, ne menja i ne briše cene vlasnika A', async () => {
+    expect(await as(B, () => q(`select * from fuel_prices`))).toHaveLength(0)
+    await as(B, () => q(`update fuel_prices set price = 1`)).catch(() => undefined)
+    await as(B, () => q(`delete from fuel_prices`))
+    const rows = await as(A, () => q<any>(`select price from fuel_prices where fuel_type = 'TNG'`))
+    expect(Number(rows[0].price)).toBe(98)
+  })
+
+  it('cene vlasnika B su odvojene od cena vlasnika A', async () => {
+    await as(B, () => price('Dizel', '2026-10-05', 150))
+    const a = await as(A, () => q<any>(`select price from fuel_prices where fuel_type = 'Dizel' and valid_from = '2026-10-05'`))
+    const b = await as(B, () => q<any>(`select price from fuel_prices where fuel_type = 'Dizel'`))
+    expect(Number(a[0].price)).toBe(190)
+    expect(b).toHaveLength(1)
+    expect(Number(b[0].price)).toBe(150)
+  })
+
+  it('vlasnik može da obriše svoju cenu', async () => {
+    await as(A, () => q(`delete from fuel_prices where fuel_type = 'Benzin'`))
+    expect(await as(A, () => q(`select 1 from fuel_prices where fuel_type = 'Benzin'`))).toHaveLength(0)
+  })
+
+  it('neispravni unosi se odbijaju', async () => {
+    await expect(as(A, () => price('Ugalj', '2026-10-05', 100))).rejects.toThrow(/bad_fuel/)
+    await expect(as(A, () => price('Dizel', '2026-10-05', 0))).rejects.toThrow(/bad_price/)
+    await expect(as(A, () => price('Dizel', '2026-10-05', -5))).rejects.toThrow(/bad_price/)
+    await expect(as(A, () => price('Dizel', '2026-10-05', 100000))).rejects.toThrow(/bad_price/)
+    await expect(as(A, () => price('Dizel', '2019-12-31', 100))).rejects.toThrow(/bad_date/)
+    await expect(as(A, () => price('Dizel', '2099-01-01', 100))).rejects.toThrow(/bad_date/)
+  })
+
+  it('vozač (anon) ne može da vidi cene ni da ih menja', async () => {
+    await expect(as('anon', () => q(`select * from fuel_prices`))).rejects.toThrow(/permission denied/)
+    await expect(as('anon', () => price('Dizel', '2026-10-05', 1))).rejects.toThrow(/permission denied/)
+    await expect(as('anon', () => q(`delete from fuel_prices`))).rejects.toThrow(/permission denied/)
+  })
+
+  it('ni vlasnik ne može da upisuje direktno u tabelu, samo preko funkcije', async () => {
+    await expect(as(A, () => q(
+      `insert into fuel_prices (fuel_type, valid_from, price) values ('Dizel', '2026-11-01', 1)`,
+    ))).rejects.toThrow(/permission denied/)
+  })
+
+  it('odgovori vozaču ne sadrže cenu goriva', async () => {
+    const r = await as('anon', () => driverCall('driver_login', [code, '4321']))
+    expect(JSON.stringify(r)).not.toMatch(/190|195|197|price|cena/i)
+  })
+})
+
+describe('održavanje budnim (keepalive)', () => {
+  it('može da ga pozove bilo ko, bez prijave, i vraća samo vreme', async () => {
+    const t = await as('anon', () => driverCall('keepalive', []))
+    expect(typeof t === 'string' || t instanceof Date).toBe(true)
+    expect(Number.isNaN(new Date(t).getTime())).toBe(false)
+  })
+
+  it('češće od jednom na sat ne upisuje ništa novo', async () => {
+    await db.exec(`update private.heartbeat set pinged_at = now() - interval '10 minutes'`)
+    const before = (await q<any>(`select pinged_at::text as t from private.heartbeat`))[0].t
+    await as('anon', () => driverCall('keepalive', []))
+    const after = (await q<any>(`select pinged_at::text as t from private.heartbeat`))[0].t
+    expect(after).toBe(before)
+  })
+
+  it('posle više od sat vremena osvežava vreme', async () => {
+    await db.exec(`update private.heartbeat set pinged_at = now() - interval '2 hours'`)
+    const old = new Date((await q<any>(`select pinged_at::text as t from private.heartbeat`))[0].t).getTime()
+    await as('anon', () => driverCall('keepalive', []))
+    const fresh = new Date((await q<any>(`select pinged_at::text as t from private.heartbeat`))[0].t).getTime()
+    expect(fresh).toBeGreaterThan(old + 60 * 60 * 1000)
+  })
+
+  it('anon ne može da čita ni da menja tabelu sa otkucajima', async () => {
+    await expect(as('anon', () => q(`select * from private.heartbeat`))).rejects.toThrow(/permission denied/)
+    await expect(as('anon', () => q(`update private.heartbeat set pinged_at = now()`))).rejects.toThrow(/permission denied/)
+  })
+
+  it('ima samo jedan red', async () => {
+    await expect(db.exec(`insert into private.heartbeat (id) values (2)`)).rejects.toThrow()
+  })
+})
+
+describe('ponovno pokretanje šeme kad u bazi već ima podataka (kao pri ažuriranju)', () => {
+  it('ništa se ne briše, a pravila pristupa i dalje važe', async () => {
+    const count = async (t: string) => Number((await q<any>(`select count(*)::int as n from public.${t}`))[0].n)
+    const before = { vehicles: await count('vehicles'), expenses: await count('expenses'), drivers: await count('drivers'), prices: await count('fuel_prices') }
+    expect(before.vehicles).toBeGreaterThan(0)
+    expect(before.expenses).toBeGreaterThan(0)
+    await db.exec(schema)
+    expect({ vehicles: await count('vehicles'), expenses: await count('expenses'), drivers: await count('drivers'), prices: await count('fuel_prices') }).toEqual(before)
+    // vozač se i dalje prijavljuje istim kodom i PIN-om
+    expect((await as('anon', () => driverCall('driver_login', [code, '4321']))).ok).toBe(true)
+    // izolacija vlasnika važi i posle ponovnog pokretanja
+    expect((await as(B, () => q(`select * from vehicles`))).length).toBe(1)
+    await expect(as('anon', () => q(`select * from expenses`))).rejects.toThrow(/permission denied/)
+  })
+})
