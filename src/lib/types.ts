@@ -59,6 +59,16 @@ export interface Expense {
   driver_id: string | null
   driver_name: string | null
   created_at: string
+  /** Postavlja aplikacija (ne baza): iznos nije upisan, već obračunat kao litri x cena goriva na dan sipanja. */
+  calc?: { price: number; from: string } | null
+}
+
+/** Cena goriva (RSD po litru, po kWh za struju) koja važi od datuma. */
+export interface FuelPrice {
+  id: string
+  fuel_type: FuelType
+  valid_from: string // YYYY-MM-DD
+  price: number
 }
 
 export type ExpenseInput = Pick<

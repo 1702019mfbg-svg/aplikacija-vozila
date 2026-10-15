@@ -3,11 +3,12 @@ import { CategoryBars, MonthlyChart } from '../components/Charts'
 import { Icon } from '../components/Icon'
 import { Odometar } from '../components/Odometar'
 import { Status } from '../components/Status'
-import { PERIODS, byCategory, monthlySeries, summarize, type Period } from '../lib/calc'
-import { formatMeter, formatMonths, formatNumber, formatRSD, plural } from '../lib/format'
+import { PERIODS, byCategory, monthlySeries, priceFor, summarize, type Period } from '../lib/calc'
+import { diffDays } from '../lib/dates'
+import { formatDate, formatDays, formatMeter, formatMonths, formatNumber, formatRSD, plural, todayISO } from '../lib/format'
 import type { Alert } from '../lib/reminders'
 import { SECTION_COPY, consumptionUnit, sectionOf, vehicleTitle } from '../lib/sections'
-import { unitFor, type Expense, type Vehicle } from '../lib/types'
+import { unitFor, type Expense, type FuelPrice, type Vehicle } from '../lib/types'
 
 interface Props {
   vehicle: Vehicle
@@ -23,10 +24,15 @@ interface Props {
   onOpenAlert: (vehicleId: string) => void
   onOpenPending: () => void
   onEditVehicle: () => void
+  fuelPrices: FuelPrice[]
+  /** false ako baza još nema tabelu cena goriva (nije pokrenuta ažurirana šema) */
+  pricesReady: boolean
+  onOpenPrices: () => void
 }
 
 export function Pregled({
   vehicle, expenses, loading, alerts, showVehicleInAlerts, period, onPeriod, includeAmort, onIncludeAmort, onOpenAlert, onOpenPending, onEditVehicle,
+  fuelPrices, pricesReady, onOpenPrices,
 }: Props) {
   const unit = vehicle.meter_unit
   const copy = SECTION_COPY[sectionOf(unit)]
@@ -36,6 +42,10 @@ export function Pregled({
   const series = useMemo(() => monthlySeries(expenses), [expenses])
   const categories = useMemo(() => byCategory(summary.list), [summary.list])
   const pendingAll = useMemo(() => expenses.filter((e) => e.amount === null).length, [expenses])
+  const today = todayISO()
+  const currentPrice = priceFor(fuelPrices, vehicle.fuel_type, today)
+  const priceAge = currentPrice ? diffDays(today, currentPrice.valid_from) : null
+  const fuelWithoutPrice = useMemo(() => expenses.filter((e) => e.category === 'gorivo' && e.amount === null).length, [expenses])
   const periodLabel = PERIODS.find((p) => p.id === period)?.label.toLowerCase()
 
   const costText = summary.costPerUnit !== null ? formatNumber(summary.costPerUnit, 2) : '––,––'
@@ -75,6 +85,39 @@ export function Pregled({
           <span className="banner-action">Dopuni</span>
         </button>
       )}
+
+      <section className="card price-card" aria-label="Cena goriva">
+        <div className="price-card-main">
+          <p className="kpi-label">Cena goriva · {vehicle.fuel_type}</p>
+          {!pricesReady ? (
+            <p className="muted">
+              Cene goriva još nisu podešene u bazi. U Supabase-u pokrenite ažurirani fajl <code>supabase/schema.sql</code> (vidi uputstvo, deo „Ažuriranje“).
+            </p>
+          ) : currentPrice ? (
+            <>
+              <p className="price-card-value">
+                {formatNumber(currentPrice.price, 2)} <small>RSD/{fuelUnit}</small>
+              </p>
+              <p className="muted">
+                važi od {formatDate(currentPrice.valid_from)}
+                {priceAge !== null && priceAge > 7 && <span className="badge badge--soon price-old">stara {formatDays(priceAge)}</span>}
+              </p>
+            </>
+          ) : (
+            <p className="muted">Nema upisane cene. Sipanja bez iznosa ostaju bez iznosa dok je ne upišete.</p>
+          )}
+          {pricesReady && fuelWithoutPrice > 0 && (
+            <p className="hint">
+              {fuelWithoutPrice} {plural(fuelWithoutPrice, 'sipanje nema', 'sipanja nemaju', 'sipanja nema')} ni iznos ni cenu.
+            </p>
+          )}
+        </div>
+        {pricesReady && (
+          <button type="button" className="btn" onClick={onOpenPrices}>
+            <Icon name="fuel" size={18} /> {currentPrice ? 'Nova cena' : 'Upiši cenu'}
+          </button>
+        )}
+      </section>
 
       <div className="pills" role="group" aria-label="Period">
         {PERIODS.map((p) => (

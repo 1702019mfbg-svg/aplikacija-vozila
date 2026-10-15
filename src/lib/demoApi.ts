@@ -1,10 +1,10 @@
 // DEMO režim: sve je u memoriji, bez Supabase-a. Služi samo za razvoj i probu izgleda.
 // Ne ulazi u produkcioni build (uključuje se samo sa VITE_DEMO=1).
-import { addDays, addMonths } from './dates'
+import { addDays, addMonths, startOfWeek } from './dates'
 import { todayISO } from './format'
 import { ApiError, driverError, type Api, type DriverEntry, type OwnerUser, type VehicleInput } from './api'
 import type {
-  Category, Driver, DriverSession, Expense, ExpenseInput, Reminder, ReminderInput, Vehicle,
+  Category, Driver, DriverSession, Expense, ExpenseInput, FuelPrice, FuelType, Reminder, ReminderInput, Vehicle,
 } from './types'
 
 interface DemoDriver extends Driver {
@@ -74,7 +74,8 @@ function seed() {
       owed -= liters
       const price = pricePerL * between(0.97, 1.03)
       add(id, d, {
-        category: 'gorivo', liters, full_tank: !partial, odometer: Math.round(odo * factor) / factor, amount: Math.round(liters * price),
+        category: 'gorivo', liters, full_tank: !partial, odometer: Math.round(odo * factor) / factor,
+        amount: driver && d < 14 ? null : Math.round(liters * price), // sveža sipanja vozača: iznos se obračunava po ceni goriva
         driver_id: driver && d < 120 ? driverId : null, driver_name: driver && d < 120 ? driver : null,
       })
     }
@@ -153,7 +154,18 @@ function seed() {
     if (e.driver_name === 'Petar') e.driver_name = 'Petar Jovanović'
   }
 
-  return { vehicles, expenses, reminders, drivers }
+  // Cene goriva: nova svake nedelje (ponedeljkom)
+  const monday = startOfWeek(today)
+  const fuelPrices: FuelPrice[] = [
+    { id: 'fp1', fuel_type: 'Dizel', valid_from: addDays(monday, -14), price: 188 },
+    { id: 'fp2', fuel_type: 'Dizel', valid_from: addDays(monday, -7), price: 191.5 },
+    { id: 'fp3', fuel_type: 'Dizel', valid_from: monday, price: 194 },
+    { id: 'fp4', fuel_type: 'TNG', valid_from: addDays(monday, -14), price: 96 },
+    { id: 'fp5', fuel_type: 'TNG', valid_from: monday, price: 98 },
+    { id: 'fp6', fuel_type: 'Benzin', valid_from: addDays(monday, -7), price: 199 },
+  ]
+
+  return { vehicles, expenses, reminders, drivers, fuelPrices }
 }
 
 export function createDemoApi(): Api {
@@ -287,6 +299,17 @@ export function createDemoApi(): Api {
         return structuredClone(r)
       },
       async deleteReminder(id) { await delay(); db.reminders = db.reminders.filter((r) => r.id !== id) },
+
+      async listFuelPrices() { await delay(); return structuredClone(db.fuelPrices).sort((a, b) => b.valid_from.localeCompare(a.valid_from)) },
+      async setFuelPrice(fuel: FuelType, validFrom: string, price: number) {
+        await delay()
+        if (!(price > 0 && price < 100000)) throw new ApiError('bad_price', 'Cena nije ispravna.')
+        const rounded = Math.round(price * 100) / 100
+        const existing = db.fuelPrices.find((p) => p.fuel_type === fuel && p.valid_from === validFrom)
+        if (existing) existing.price = rounded
+        else db.fuelPrices.push({ id: uid('fp'), fuel_type: fuel, valid_from: validFrom, price: rounded })
+      },
+      async deleteFuelPrice(id) { await delay(); db.fuelPrices = db.fuelPrices.filter((p) => p.id !== id) },
     },
 
     driver: {

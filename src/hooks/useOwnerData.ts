@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorText, getApi } from '../lib/api'
-import type { Driver, Expense, Reminder, Vehicle } from '../lib/types'
+import type { Driver, Expense, FuelPrice, Reminder, Vehicle } from '../lib/types'
 
 export interface OwnerBase {
   loading: boolean
@@ -10,10 +10,15 @@ export interface OwnerBase {
   odometers: Record<string, number>
   reminders: Reminder[]
   drivers: Driver[]
+  /** cene goriva (svaka vrsta goriva ima istoriju sa datumom "važi od") */
+  fuelPrices: FuelPrice[]
+  /** false ako se cene ne mogu pročitati (baza još nije ažurirana novijom šemom) */
+  pricesReady: boolean
   reload: () => Promise<void>
   reloadOdometers: () => Promise<void>
   reloadReminders: () => Promise<void>
   reloadDrivers: () => Promise<void>
+  reloadFuelPrices: () => Promise<void>
 }
 
 /** Vozila, podsetnici i vozači vlasnika. */
@@ -26,17 +31,24 @@ export function useOwnerBase(): OwnerBase {
     odometers: {} as Record<string, number>,
     reminders: [] as Reminder[],
     drivers: [] as Driver[],
+    fuelPrices: [] as FuelPrice[],
+    pricesReady: true,
   })
 
   const reload = useCallback(async () => {
     try {
-      const [vehicles, odometers, reminders, drivers] = await Promise.all([
+      const [vehicles, odometers, reminders, drivers, prices] = await Promise.all([
         api.listVehicles(),
         api.odometers(),
         api.listReminders(),
         api.listDrivers(),
+        // cene goriva su novije od ostalog: ako baza još nije ažurirana, sve ostalo mora da radi
+        api.listFuelPrices().then(
+          (fuelPrices) => ({ fuelPrices, pricesReady: true }),
+          () => ({ fuelPrices: [] as FuelPrice[], pricesReady: false }),
+        ),
       ])
-      setState({ loading: false, error: null, vehicles, odometers, reminders, drivers })
+      setState({ loading: false, error: null, vehicles, odometers, reminders, drivers, ...prices })
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: errorText(e) }))
     }
@@ -58,8 +70,12 @@ export function useOwnerBase(): OwnerBase {
     const drivers = await api.listDrivers()
     setState((s) => ({ ...s, drivers }))
   }, [api])
+  const reloadFuelPrices = useCallback(async () => {
+    const fuelPrices = await api.listFuelPrices()
+    setState((s) => ({ ...s, fuelPrices, pricesReady: true }))
+  }, [api])
 
-  return { ...state, reload, reloadOdometers, reloadReminders, reloadDrivers }
+  return { ...state, reload, reloadOdometers, reloadReminders, reloadDrivers, reloadFuelPrices }
 }
 
 export interface ExpensesData {

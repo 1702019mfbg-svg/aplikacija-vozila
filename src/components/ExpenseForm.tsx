@@ -1,10 +1,11 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { errorText } from '../lib/api'
+import { priceFor } from '../lib/calc'
 import { addDays } from '../lib/dates'
-import { formatDate, formatMeter, meterName, parseDecimal, parseMeter, todayISO } from '../lib/format'
+import { formatDate, formatMeter, formatNumber, formatRSD, meterName, parseDecimal, parseMeter, todayISO } from '../lib/format'
 import { nextDueDate } from '../lib/reminders'
 import {
-  NOTE_REQUIRED, categoryLabel, unitFor, type Category, type Expense, type FuelType, type MeterUnit, type Reminder,
+  NOTE_REQUIRED, categoryLabel, unitFor, type Category, type Expense, type FuelPrice, type FuelType, type MeterUnit, type Reminder,
 } from '../lib/types'
 import { CheckField, FormError, TextAreaField, TextField } from './Fields'
 
@@ -30,6 +31,8 @@ interface Props {
   /** vrste koje vlasnik može da izabere */
   categories: Category[]
   reminders?: Reminder[]
+  /** vlasnik: cene goriva, da se pri unosu vidi i obračun iznosa */
+  prices?: FuelPrice[]
   onSubmit: (value: ExpenseFormValue) => Promise<void>
   onDelete?: () => Promise<void>
   onCancel?: () => void
@@ -39,7 +42,7 @@ interface Props {
 const toInput = (n: number): string => String(n).replace('.', ',')
 
 export function ExpenseForm({
-  mode, vehicle, lastOdometer, initial, category: presetCategory, categories, reminders = [], onSubmit, onDelete, onCancel, submitLabel,
+  mode, vehicle, lastOdometer, initial, category: presetCategory, categories, reminders = [], prices = [], onSubmit, onDelete, onCancel, submitLabel,
 }: Props) {
   const unit = vehicle.meter_unit
   const fuelUnit = unitFor(vehicle.fuel_type)
@@ -48,7 +51,9 @@ export function ExpenseForm({
 
   const [category, setCategory] = useState<Category>(initial?.category ?? presetCategory ?? categories[0] ?? 'gorivo')
   const [date, setDate] = useState(initial?.expense_date ?? today)
-  const [amount, setAmount] = useState(initial?.amount != null ? toInput(initial.amount) : '')
+  // obračunat iznos (iz cene goriva) nije upisan u bazu, pa se u obrascu tretira kao prazan
+  const initialAmount = initial?.calc ? null : (initial?.amount ?? null)
+  const [amount, setAmount] = useState(initialAmount !== null ? toInput(initialAmount) : '')
   const [meter, setMeter] = useState(initial?.odometer != null ? toInput(initial.odometer) : '')
   const [liters, setLiters] = useState(initial?.liters != null ? toInput(initial.liters) : '')
   const [full, setFull] = useState(initial?.full_tank ?? true)
@@ -66,6 +71,8 @@ export function ExpenseForm({
       ? reminders.find((r) => r.type === category)
       : undefined
 
+  const priceInfo = mode === 'owner' && isFuel ? priceFor(prices, vehicle.fuel_type, date) : null
+  const litersNumber = isFuel ? parseDecimal(liters) : null
   const meterNumber = parseMeter(meter, unit)
   const belowLast = mode === 'owner' && !initial && meterNumber !== null && meterNumber < lastOdometer
 
@@ -81,8 +88,8 @@ export function ExpenseForm({
       const n = parseDecimal(amount)
       if (n === null || n < 0 || n > 99_999_999) errs.amount = 'Upišite ispravan iznos, npr. 1.250,50.'
       else amountValue = Math.round(n * 100) / 100
-    } else if (mode === 'owner' && !(initial && initial.amount === null)) {
-      errs.amount = 'Upišite iznos.'
+    } else if (mode === 'owner' && !isFuel && !(initial && initialAmount === null)) {
+      errs.amount = 'Upišite iznos.' // za gorivo nije obavezan: računa se po ceni goriva
     }
 
     let meterValue: number | null = null
@@ -197,11 +204,19 @@ export function ExpenseForm({
           label="Iznos (RSD)"
           inputMode="decimal"
           autoComplete="off"
-          placeholder={mode === 'driver' ? 'nije obavezno' : '0,00'}
+          placeholder={mode === 'driver' ? 'nije obavezno' : isFuel ? 'nije obavezno' : '0,00'}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           error={errors.amount}
-          hint={mode === 'driver' ? 'Ako ne znate iznos, ostavite prazno.' : undefined}
+          hint={
+            mode === 'driver'
+              ? isFuel
+                ? 'Nije obavezno, iznos obračunava vlasnik.'
+                : 'Ako ne znate iznos, ostavite prazno.'
+              : isFuel
+                ? 'Nije obavezno.'
+                : undefined
+          }
         />
       </div>
 
@@ -237,6 +252,34 @@ export function ExpenseForm({
             checked={full}
             onChange={(e) => setFull(e.target.checked)}
           />
+          {mode === 'owner' && (
+            <div className="price-note" role="note">
+              {priceInfo ? (
+                <>
+                  <p>
+                    <strong>
+                      Cena goriva: {formatNumber(priceInfo.price, 2)} RSD/{fuelUnit}
+                    </strong>{' '}
+                    <span className="muted">(važi od {formatDate(priceInfo.valid_from)})</span>
+                  </p>
+                  {amount.trim() !== '' ? (
+                    <p className="muted">Iznos koji ste upisali ima prednost nad obračunom.</p>
+                  ) : litersNumber !== null && litersNumber > 0 ? (
+                    <p>
+                      Iznos će biti obračunat: <strong>{formatRSD(Math.round(litersNumber * priceInfo.price * 100) / 100)}</strong> (
+                      {formatNumber(litersNumber, 2)} {fuelUnit} × {formatNumber(priceInfo.price, 2)})
+                    </p>
+                  ) : (
+                    <p className="muted">Upišite količinu i iznos će se obračunati po ovoj ceni.</p>
+                  )}
+                </>
+              ) : (
+                <p className="muted">
+                  Nema upisane cene goriva za ovaj datum, pa iznos ostaje prazan dok je ne upišete (Pregled → Cena goriva).
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
 

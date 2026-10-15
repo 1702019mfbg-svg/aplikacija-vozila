@@ -7,12 +7,13 @@ import { SectionSwitch } from '../components/SectionSwitch'
 import { useToast } from '../components/Toast'
 import { useExpenses, useOwnerBase } from '../hooks/useOwnerData'
 import { errorText, getApi, type OwnerUser } from '../lib/api'
-import { PERIODS, latestOdometer, type Period } from '../lib/calc'
+import { PERIODS, applyFuelPrices, latestOdometer, type Period } from '../lib/calc'
 import { collectAlerts, markDone } from '../lib/reminders'
 import { SECTION_COPY, categoriesFor, sectionOf, vehicleTitle, vehiclesIn, type Section } from '../lib/sections'
 import { storage } from '../lib/storage'
 import { THEME_LABELS, useTheme, type ThemeChoice } from '../lib/theme'
 import { CATEGORIES, type Category, type Expense, type Vehicle } from '../lib/types'
+import { CeneGoriva } from './CeneGoriva'
 import { Podsetnici } from './Podsetnici'
 import { Pregled } from './Pregled'
 import { Unosi } from './Unosi'
@@ -48,12 +49,18 @@ export function OwnerApp({ user, onSignOut }: { user: OwnerUser; onSignOut: () =
   const [expenseModal, setExpenseModal] = useState<{ expense: Expense | null } | null>(null)
   const [vehicleModal, setVehicleModal] = useState<{ vehicle: Vehicle | null } | null>(null)
   const [passwordModal, setPasswordModal] = useState(false)
+  const [pricesModal, setPricesModal] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const copy = SECTION_COPY[section]
   const sectionVehicles = useMemo(() => vehiclesIn(base.vehicles, section), [base.vehicles, section])
   const vehicle = sectionVehicles.find((v) => v.id === chosen[section]) ?? sectionVehicles[0] ?? null
   const exp = useExpenses(vehicle?.id ?? null)
+  // sipanja bez upisanog iznosa dobijaju obračunat iznos (litri x cena goriva na dan sipanja)
+  const expenses = useMemo(
+    () => (vehicle ? applyFuelPrices(exp.expenses, vehicle.fuel_type, base.fuelPrices) : exp.expenses),
+    [exp.expenses, vehicle, base.fuelPrices],
+  )
   const currentMeter = vehicle ? Math.max(base.odometers[vehicle.id] ?? 0, latestOdometer(vehicle, exp.expenses)) : 0
 
   const alertsAll = useMemo(() => collectAlerts(base.reminders, base.vehicles, base.odometers), [base.reminders, base.vehicles, base.odometers])
@@ -246,7 +253,7 @@ export function OwnerApp({ user, onSignOut }: { user: OwnerUser; onSignOut: () =
         ) : tab === 'pregled' && vehicle ? (
           <Pregled
             vehicle={vehicle}
-            expenses={exp.expenses}
+            expenses={expenses}
             loading={exp.loading}
             alerts={sectionAlerts}
             showVehicleInAlerts={sectionVehicles.length > 1}
@@ -260,11 +267,14 @@ export function OwnerApp({ user, onSignOut }: { user: OwnerUser; onSignOut: () =
               setTab('unosi')
             }}
             onEditVehicle={() => setVehicleModal({ vehicle })}
+            fuelPrices={base.fuelPrices}
+            pricesReady={base.pricesReady}
+            onOpenPrices={() => setPricesModal(true)}
           />
         ) : tab === 'unosi' && vehicle ? (
           <Unosi
             vehicle={vehicle}
-            expenses={exp.expenses}
+            expenses={expenses}
             loading={exp.loading}
             period={period}
             onPeriod={changePeriod}
@@ -297,6 +307,7 @@ export function OwnerApp({ user, onSignOut }: { user: OwnerUser; onSignOut: () =
             initial={editing}
             categories={formCategories}
             reminders={base.reminders.filter((r) => r.vehicle_id === vehicle.id)}
+            prices={base.fuelPrices}
             onSubmit={(v) => saveExpense(v, editing)}
             onDelete={editing ? () => deleteExpense(editing) : undefined}
             onCancel={() => setExpenseModal(null)}
@@ -320,6 +331,18 @@ export function OwnerApp({ user, onSignOut }: { user: OwnerUser; onSignOut: () =
               await base.reload()
               exp.reload()
             }}
+          />
+        </Modal>
+      )}
+
+      {pricesModal && vehicle && (
+        <Modal title="Cena goriva" onClose={() => setPricesModal(false)}>
+          <CeneGoriva
+            prices={base.fuelPrices}
+            fuels={[...new Set(base.vehicles.map((v) => v.fuel_type))]}
+            initialFuel={vehicle.fuel_type}
+            onChanged={base.reloadFuelPrices}
+            onClose={() => setPricesModal(false)}
           />
         </Modal>
       )}

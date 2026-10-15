@@ -1,3 +1,4 @@
+import { unitPrice } from './calc'
 import { formatDate, meterName } from './format'
 import { categoryLabel, type Expense, type Vehicle } from './types'
 
@@ -5,6 +6,7 @@ import { categoryLabel, type Expense, type Vehicle } from './types'
 
 const header = (vehicle: Vehicle): string[] => [
   'Datum', 'Vozilo', 'Registracija', 'Vrsta', 'Iznos (RSD)', meterName(vehicle.meter_unit), 'Litara', 'Pun rezervoar', 'Napomena', 'Uneo',
+  vehicle.fuel_type === 'Električno' ? 'Cena po kWh (RSD)' : 'Cena po litru (RSD)', 'Iznos obračunat po ceni goriva',
 ]
 
 /** Tekst koji počinje sa = + - @ Excel bi izvršio kao formulu; dodajemo apostrof ispred. */
@@ -32,6 +34,8 @@ export function buildCsv(expenses: Expense[], vehicle: Vehicle): string {
       e.category === 'gorivo' ? (e.full_tank ? 'Da' : 'Ne') : '',
       safeText((e.note ?? '').replace(/\s+/g, ' ').trim()),
       safeText(e.driver_name ?? ''),
+      num(unitPrice(e), 2),
+      e.calc ? 'Da' : '',
     ].map(cell),
   )
   const lines = [header(vehicle).map(cell), ...rows].map((r) => r.join(';'))

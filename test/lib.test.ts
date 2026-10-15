@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   amortization, byCategory, filterByRange, fuelStats, usageInRange, latestOdometer, monthlySeries, monthsSpanned,
-  periodRange, sumAmount, summarize,
+  periodRange, sumAmount, summarize, priceFor, applyFuelPrices, unitPrice,
 } from '../src/lib/calc'
 import { buildCsv, csvFilename } from '../src/lib/csv'
-import { addMonths, diffDays } from '../src/lib/dates'
+import { addMonths, diffDays, startOfWeek } from '../src/lib/dates'
 import { formatDate, formatMeter, formatNumber, formatRSD, meterName, parseDecimal, parseInteger, parseMeter, plural, todayISO } from '../src/lib/format'
 import { REMINDER_PRESETS, WARN_DAYS, collectAlerts, evaluateReminder, markDone, nextDueDate, presetFor, sortByUrgency } from '../src/lib/reminders'
-import { CATEGORIES, type Expense, type Reminder, type Vehicle } from '../src/lib/types'
+import { CATEGORIES, type Expense, type FuelPrice, type Reminder, type Vehicle } from '../src/lib/types'
 import { SECTION_COPY, categoriesFor, consumptionUnit, reminderTypesFor, sectionOf, unitOfSection, vehiclesIn } from '../src/lib/sections'
 
 const NOW = new Date(2026, 9, 5, 12, 0, 0) // 5. oktobar 2026.
@@ -410,13 +410,15 @@ describe('CSV izvoz', () => {
   it('UTF-8 sa BOM, CRLF i separator ";"', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff)
     expect(csv.endsWith('\r\n')).toBe(true)
-    expect(csv.split('\r\n')[0]).toBe('\uFEFFDatum;Vozilo;Registracija;Vrsta;Iznos (RSD);Kilometraža;Litara;Pun rezervoar;Napomena;Uneo')
+    expect(csv.split('\r\n')[0]).toBe(
+      '\uFEFFDatum;Vozilo;Registracija;Vrsta;Iznos (RSD);Kilometraža;Litara;Pun rezervoar;Napomena;Uneo;Cena po litru (RSD);Iznos obračunat po ceni goriva',
+    )
   })
 
   it('decimalni zarez, redom po datumu, prazno polje za nepoznat iznos', () => {
     const lines = csv.slice(1).split('\r\n')
     expect(lines[1].startsWith('01.10.2026;Golf;BG-123-AA;Ostalo;;;;;')).toBe(true)
-    expect(lines[3]).toBe('05.10.2026;Golf;BG-123-AA;Gorivo;8123,50;100500;40,25;Da;;Marko')
+    expect(lines[3]).toBe('05.10.2026;Golf;BG-123-AA;Gorivo;8123,50;100500;40,25;Da;;Marko;201,83;') // 8123,50 / 40,25
   })
 
   it('polja sa ; navodnicima i novim redom ostaju u jednom polju', () => {
@@ -591,5 +593,108 @@ describe('delovi aplikacije: Vozila (km) i Radne mašine (sati)', () => {
     expect(consumptionUnit('km', 'L')).toBe('L/100 km')
     expect(consumptionUnit('h', 'L')).toBe('L/h')
     expect(consumptionUnit('h', 'kWh')).toBe('kWh/h')
+  })
+})
+
+describe('cena goriva i obračun iznosa', () => {
+  const prices: FuelPrice[] = [
+    { id: 'p1', fuel_type: 'Dizel', valid_from: '2026-09-28', price: 188 },
+    { id: 'p2', fuel_type: 'Dizel', valid_from: '2026-10-05', price: 190 },
+    { id: 'p3', fuel_type: 'Dizel', valid_from: '2026-10-12', price: 195.5 },
+    { id: 'p4', fuel_type: 'TNG', valid_from: '2026-10-05', price: 98 },
+  ]
+
+  it('važi poslednja cena čiji je datum "važi od" jednak ili raniji od dana sipanja', () => {
+    expect(priceFor(prices, 'Dizel', '2026-10-09')?.price).toBe(190)
+    expect(priceFor(prices, 'Dizel', '2026-10-12')?.price).toBe(195.5) // tog dana već važi nova cena
+    expect(priceFor(prices, 'Dizel', '2026-10-11')?.price).toBe(190) // dan pre
+    expect(priceFor(prices, 'Dizel', '2026-12-31')?.price).toBe(195.5) // važi dok se ne upiše nova
+  })
+
+  it('pre prve upisane cene i za drugu vrstu goriva nema cene', () => {
+    expect(priceFor(prices, 'Dizel', '2026-09-27')).toBeNull()
+    expect(priceFor(prices, 'Benzin', '2026-10-09')).toBeNull()
+    expect(priceFor(prices, 'TNG', '2026-10-04')).toBeNull()
+    expect(priceFor([], 'Dizel', '2026-10-09')).toBeNull()
+  })
+
+  it('sipanje bez iznosa dobija iznos: litri x cena, zaokruženo na pare', () => {
+    const list = [
+      fill(1000, 40, true, { expense_date: '2026-10-09', amount: null }), // 40 x 190
+      fill(1500, 40, true, { expense_date: '2026-10-14', amount: null }), // 40 x 195,5
+      fill(1800, 33.33, true, { expense_date: '2026-10-14', amount: null }), // 33,33 x 195,5 = 6516,015
+    ]
+    const out = applyFuelPrices(list, 'Dizel', prices)
+    expect(out.map((e) => e.amount)).toEqual([7600, 7820, 6516.02])
+    expect(out[0].calc).toEqual({ price: 190, from: '2026-10-05' })
+    expect(out[1].calc).toEqual({ price: 195.5, from: '2026-10-12' })
+  })
+
+  it('upisan iznos ima prednost i ne dira se', () => {
+    const list = [fill(1000, 40, true, { expense_date: '2026-10-09', amount: 7000 })]
+    const out = applyFuelPrices(list, 'Dizel', prices)
+    expect(out[0].amount).toBe(7000)
+    expect(out[0].calc).toBeUndefined()
+  })
+
+  it('ostaje prazno kad nema cene za taj dan, kad nema litara i za ostale vrste troškova', () => {
+    const list = [
+      fill(1000, 40, true, { expense_date: '2026-09-01', amount: null }), // pre prve cene
+      exp({ category: 'gorivo', odometer: 1100, liters: null, full_tank: true, amount: null, expense_date: '2026-10-09' }),
+      exp({ category: 'putarina', amount: null, expense_date: '2026-10-09' }),
+    ]
+    const out = applyFuelPrices(list, 'Dizel', prices)
+    expect(out.map((e) => e.amount)).toEqual([null, null, null])
+    expect(out.every((e) => !e.calc)).toBe(true)
+  })
+
+  it('ne menja ulaznu listu, a bez cena vraća istu listu', () => {
+    const list = [fill(1000, 40, true, { expense_date: '2026-10-09', amount: null })]
+    const out = applyFuelPrices(list, 'Dizel', prices)
+    expect(list[0].amount).toBeNull()
+    expect(out).not.toBe(list)
+    expect(applyFuelPrices(list, 'Dizel', [])).toBe(list)
+  })
+
+  it('obračunati iznosi ulaze u zbir, cenu po km i mesečni prosek; "bez iznosa" ostaje samo ono što se ne može obračunati', () => {
+    const list = [
+      fill(100000, 50, true, { expense_date: '2026-10-02', amount: null }), // važi cena od 28.9: 50 x 188 = 9400
+      fill(100500, 40, true, { expense_date: '2026-10-05', amount: null }), // 40 x 190 = 7600
+      exp({ expense_date: '2026-10-04', category: 'putarina', amount: null }), // nema cene za putarinu
+    ]
+    const s = summarize(vehicle, applyFuelPrices(list, 'Dizel', prices), 'mesec', { includeAmort: false, now: NOW })
+    expect(s.expensesTotal).toBe(17000) // 9400 + 7600
+    expect(s.pending).toBe(1) // samo putarina
+    expect(s.usage).toBe(500)
+    expect(s.costPerUnit).toBeCloseTo(17000 / 500, 10)
+    expect(monthlySeries(applyFuelPrices(list, 'Dizel', prices), NOW)[11].fuel).toBe(17000)
+  })
+
+  it('cena po litru za prikaz: obračunata cena, ili iznos / količina', () => {
+    const calc = applyFuelPrices([fill(1000, 40, true, { expense_date: '2026-10-09', amount: null })], 'Dizel', prices)[0]
+    expect(unitPrice(calc)).toBe(190)
+    expect(unitPrice(fill(1000, 40, true, { amount: 7500 }))).toBe(187.5)
+    expect(unitPrice(fill(1000, 40, true, { amount: null }))).toBeNull()
+    expect(unitPrice(exp({ category: 'putarina', amount: 500 }))).toBeNull()
+  })
+
+  it('CSV: dodatne kolone sa cenom po litru i oznakom obračuna', () => {
+    const list = applyFuelPrices(
+      [fill(1000, 40, true, { expense_date: '2026-10-09', amount: null }), fill(1500, 40, true, { expense_date: '2026-10-10', amount: 7500 })],
+      'Dizel', prices,
+    )
+    const lines = buildCsv(list, vehicle).split('\r\n')
+    expect(lines[1]).toBe('09.10.2026;Golf;BG-123-AA;Gorivo;7600,00;1000;40,00;Da;;;190,00;Da')
+    expect(lines[2]).toBe('10.10.2026;Golf;BG-123-AA;Gorivo;7500,00;1500;40,00;Da;;;187,50;')
+    const electric = buildCsv([], { ...vehicle, fuel_type: 'Električno' }).split('\r\n')[0]
+    expect(electric).toContain('Cena po kWh (RSD)')
+  })
+
+  it('nedelja počinje ponedeljkom', () => {
+    expect(startOfWeek('2026-10-05')).toBe('2026-10-05') // ponedeljak
+    expect(startOfWeek('2026-10-07')).toBe('2026-10-05') // sreda
+    expect(startOfWeek('2026-10-11')).toBe('2026-10-05') // nedelja
+    expect(startOfWeek('2026-10-12')).toBe('2026-10-12')
+    expect(startOfWeek('2026-01-01')).toBe('2025-12-29') // prelazak u prethodnu godinu
   })
 })
