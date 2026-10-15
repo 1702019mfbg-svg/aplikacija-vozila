@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  amortization, byCategory, filterByRange, fuelStats, usageInRange, latestOdometer, monthlySeries, monthsSpanned,
+  amortization, byCategory, filterByRange, fuelStats, usageForPeriod, latestOdometer, monthlySeries, monthsSpanned,
   periodRange, sumAmount, summarize, priceFor, applyFuelPrices, unitPrice,
 } from '../src/lib/calc'
 import { buildCsv, csvFilename } from '../src/lib/csv'
@@ -97,13 +97,40 @@ describe('periodi', () => {
 })
 
 describe('pređeni kilometri', () => {
-  it('najveća minus najmanja upisana kilometraža', () => {
-    expect(usageInRange([exp({ odometer: 1000 }), exp({ odometer: 1500 }), exp({ odometer: 1200 }), exp({})])).toBe(500)
+  const sve = { from: null, to: null }
+
+  it('od početne kilometraže vozila do najveće upisane: prvo sipanje pokriva put od početne', () => {
+    const list = [exp({ odometer: 100800 }), exp({ odometer: 101600 }), exp({})]
+    expect(usageForPeriod(vehicle, list, sve)).toEqual({ from: 100000, to: 101600, used: 1600 })
   })
-  it('bez dva različita očitavanja nema odgovora', () => {
-    expect(usageInRange([])).toBeNull()
-    expect(usageInRange([exp({ odometer: 1000 })])).toBeNull()
-    expect(usageInRange([exp({ odometer: 1000 }), exp({ odometer: 1000 })])).toBeNull()
+
+  it('računa se već posle prvog unosa sa kilometražom', () => {
+    expect(usageForPeriod(vehicle, [exp({ odometer: 100800 })], sve)!.used).toBe(800)
+  })
+
+  it('u kasnijem periodu kreće od poslednjeg očitavanja pre perioda', () => {
+    const list = [
+      exp({ expense_date: '2026-09-20', odometer: 100800 }),
+      exp({ expense_date: '2026-10-03', odometer: 101300 }),
+      exp({ expense_date: '2026-10-04', odometer: 101600 }),
+    ]
+    expect(usageForPeriod(vehicle, list, periodRange('mesec', NOW))).toEqual({ from: 100800, to: 101600, used: 800 })
+  })
+
+  it('bez početne kilometraže (0) potrebna su dva očitavanja: najveće minus najmanje', () => {
+    const v0 = { ...vehicle, initial_odometer: 0 }
+    expect(usageForPeriod(v0, [exp({ odometer: 1000 })], sve)).toBeNull()
+    expect(usageForPeriod(v0, [exp({ odometer: 1000 }), exp({ odometer: 1500 }), exp({ odometer: 1200 })], sve)!.used).toBe(500)
+  })
+
+  it('početna kilometraža veća od upisane (greška u unosu) se zanemaruje', () => {
+    expect(usageForPeriod(vehicle, [exp({ odometer: 99000 }), exp({ odometer: 99500 })], sve)!.used).toBe(500)
+  })
+
+  it('bez očitavanja ili bez pomaka nema odgovora', () => {
+    expect(usageForPeriod(vehicle, [], sve)).toBeNull()
+    expect(usageForPeriod(vehicle, [exp({})], sve)).toBeNull()
+    expect(usageForPeriod(vehicle, [exp({ odometer: 100000 })], sve)).toBeNull()
   })
 })
 
@@ -142,6 +169,43 @@ describe('potrošnja metodom punog rezervoara', () => {
   it('ne meša gorivo sa ostalim troškovima', () => {
     const list = [fill(1000, 50, true), exp({ category: 'servis', odometer: 1200 }), fill(1500, 40, true)]
     expect(fuelStats(list)!.liters).toBe(40)
+  })
+
+  const sve = { from: null, to: null }
+
+  it('sa početnom kilometražom (rezervoar je tada bio pun) računa se već posle prvog punog sipanja', () => {
+    const s = fuelStats([fill(100800, 160, true)], sve, 100000)!
+    expect(s.liters).toBe(160)
+    expect(s.usage).toBe(800)
+    expect(s.per100).toBeCloseTo(20, 10)
+  })
+
+  it('primer iz prakse: pun na početku, pa dva puna sipanja; računaju se oba', () => {
+    // bez početne tačke: samo drugo sipanje na 899 km; sa njom: 170 + 173 L na 1.799 km
+    const list = [fill(100900, 170, true), fill(101799, 173, true)]
+    expect(fuelStats(list)!.usage).toBe(899)
+    const s = fuelStats(list, sve, 100000)!
+    expect(s.liters).toBe(343)
+    expect(s.usage).toBe(1799)
+  })
+
+  it('delimična sipanja posle početka ulaze u prvo puno sipanje', () => {
+    const s = fuelStats([fill(100300, 20, false), fill(100600, 40, true)], sve, 100000)!
+    expect(s.liters).toBe(60)
+    expect(s.usage).toBe(600)
+  })
+
+  it('početna tačka iznad prvog sipanja se ne koristi (greška u unosu)', () => {
+    expect(fuelStats([fill(1000, 50, true), fill(1500, 40, true)], sve, 2000)!.liters).toBe(40)
+  })
+
+  it('u periodu: prvi obračun se oslanja na poslednje puno sipanje pre perioda', () => {
+    const list = [fill(100000, 50, true, { expense_date: '2026-09-25' }), fill(100500, 40, true, { expense_date: '2026-10-03' })]
+    const s = fuelStats(list, periodRange('mesec', NOW))!
+    expect(s.liters).toBe(40)
+    expect(s.usage).toBe(500)
+    // kad u periodu nema punog sipanja, nema ni obračuna
+    expect(fuelStats([fill(100500, 50, true, { expense_date: '2026-09-25' })], periodRange('mesec', NOW), 100000)).toBeNull()
   })
 })
 
@@ -190,13 +254,14 @@ describe('pregled', () => {
     exp({ expense_date: '2026-09-01', category: 'servis', amount: 20000, odometer: 99000 }),
   ]
 
-  it('cena po km = zbir u periodu / (najveća - najmanja kilometraža u periodu)', () => {
+  it('cena po km = zbir u periodu / pređeno od poslednjeg očitavanja pre perioda', () => {
     const s = summarize(vehicle, list, 'mesec', { includeAmort: false, now: NOW })
     expect(s.count).toBe(4)
     expect(s.expensesTotal).toBe(13000) // 8000 + 500 + 4500, unos bez iznosa se ne računa
     expect(s.pending).toBe(1)
-    expect(s.usage).toBe(500) // 100500 - 100000 (očitavanje iz septembra ne ulazi)
-    expect(s.costPerUnit).toBeCloseTo(26, 10)
+    expect(s.usage).toBe(1500) // 100500 - 99000 (poslednje očitavanje pre oktobra je iz septembra)
+    expect(s.usageSpan).toEqual({ from: 99000, to: 100500, used: 1500 })
+    expect(s.costPerUnit).toBeCloseTo(13000 / 1500, 10)
     expect(s.months).toBe(1)
     expect(s.monthlyAvg).toBe(13000)
   })
@@ -204,7 +269,7 @@ describe('pregled', () => {
   it('period "Sve" obuhvata i starije unose, a prosek je po mesecima od prvog unosa', () => {
     const s = summarize(vehicle, list, 'sve', { includeAmort: false, now: NOW })
     expect(s.expensesTotal).toBe(33000)
-    expect(s.usage).toBe(1500) // 100500 - 99000
+    expect(s.usage).toBe(1500) // 100500 - 99000 (početna 100.000 je veća od prvog očitavanja, pa se ne koristi)
     expect(s.costPerUnit).toBeCloseTo(22, 10)
     expect(s.months).toBe(2) // septembar i oktobar
     expect(s.monthlyAvg).toBe(16500)
@@ -220,7 +285,20 @@ describe('pregled', () => {
     expect(off.total).toBe(13000)
     expect(on.total).toBeCloseTo(13000 + perDay * days, 1)
     expect(on.costPerUnit!).toBeGreaterThan(off.costPerUnit!)
-    expect(on.costPerUnit).toBeCloseTo(on.total / 500, 10)
+    expect(on.costPerUnit).toBeCloseTo(on.total / 1500, 10)
+  })
+
+  it('primer iz prakse: kamion pun na početku, dva sipanja, oko 45 umesto 90 RSD/km', () => {
+    const v = { ...vehicle, initial_odometer: 300000 }
+    const list = [
+      fill(300900, 178, true, { expense_date: '2026-10-02', amount: 40054 }),
+      fill(301799, 173, true, { expense_date: '2026-10-04', amount: 40054 }),
+    ]
+    const s = summarize(v, list, 'mesec', { includeAmort: false, now: NOW })
+    expect(s.usage).toBe(1799) // ranije 899 (samo između dva sipanja)
+    expect(s.costPerUnit).toBeCloseTo(80108 / 1799, 8) // 44,53 RSD/km
+    expect(s.fuel!.liters).toBe(351)
+    expect(s.fuel!.per100).toBeCloseTo((351 / 1799) * 100, 8)
   })
 
   it('bez dovoljno kilometraže nema cene po km', () => {
@@ -472,8 +550,10 @@ describe('viljuškari: radni sati umesto kilometara', () => {
     expect(meterName('km')).toBe('Kilometraža')
   })
 
-  it('odrađeni sati = najveće minus najmanje očitavanje, bez plutajuće greške', () => {
-    expect(usageInRange(list)).toBe(40.7) // 4340,7 - 4300 (u binarnom zapisu 40.69999999999982)
+  it('odrađeni sati od početnih sati, bez plutajuće greške', () => {
+    expect(usageForPeriod(forklift, list, periodRange('mesec', NOW))!.used).toBe(140.7) // 4340,7 - 4200
+    // bez početnih sati: 4340,7 - 4300 (u binarnom zapisu 40.69999999999982)
+    expect(usageForPeriod({ initial_odometer: 0 }, list, periodRange('mesec', NOW))!.used).toBe(40.7)
   })
 
   it('potrošnja u litrima po satu (metoda punog rezervoara)', () => {
@@ -487,10 +567,13 @@ describe('viljuškari: radni sati umesto kilometara', () => {
   it('cena po satu i sati mesečno', () => {
     const s = summarize(forklift, list, 'mesec', { includeAmort: false, now: NOW })
     expect(s.expensesTotal).toBe(52000)
-    expect(s.usage).toBe(40.7)
-    expect(s.costPerUnit).toBeCloseTo(52000 / 40.7, 8) // 1.277,6 RSD/h
+    expect(s.usage).toBe(140.7) // od početnih 4.200 h (tada je rezervoar bio pun)
+    expect(s.costPerUnit).toBeCloseTo(52000 / 140.7, 8)
     expect(s.months).toBe(1)
-    expect(s.usagePerMonth).toBeCloseTo(40.7, 10)
+    expect(s.usagePerMonth).toBeCloseTo(140.7, 10)
+    // potrošnja: i prvo punjenje (40 L na 100 h) ulazi u obračun
+    expect(s.fuel!.liters).toBe(160)
+    expect(s.fuel!.usage).toBe(140.7)
   })
 
   it('prosečno korišćenje se računa po mesecima obuhvaćenim periodom', () => {
@@ -499,9 +582,9 @@ describe('viljuškari: radni sati umesto kilometara', () => {
       ...list,
     ]
     const s = summarize(forklift, older, 'sve', { includeAmort: false, now: NOW })
-    expect(s.usage).toBe(90.7) // 4340,7 - 4250
+    expect(s.usage).toBe(140.7) // 4340,7 - 4200 (početni sati)
     expect(s.months).toBe(3) // avgust, septembar, oktobar
-    expect(s.usagePerMonth).toBeCloseTo(90.7 / 3, 10)
+    expect(s.usagePerMonth).toBeCloseTo(140.7 / 3, 10)
   })
 
   it('poslednja vrednost brojača uzima u obzir početne sate', () => {

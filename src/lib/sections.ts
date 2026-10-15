@@ -54,7 +54,7 @@ export const SECTION_COPY: Record<Section, SectionCopy> = {
     costUnit: 'RSD/km',
     usageTitle: 'Pređeno',
     consumptionTitle: 'Potrošnja',
-    usageHint: 'Potrebna su bar dva unosa sa kilometražom u izabranom periodu.',
+    usageHint: 'Upišite kilometražu uz bar jedan unos u izabranom periodu.',
     deleteWarning: 'Obrisati vozilo i SVE njegove troškove i podsetnike? Ovo se ne može poništiti.',
   },
   masine: {
@@ -75,7 +75,7 @@ export const SECTION_COPY: Record<Section, SectionCopy> = {
     costUnit: 'RSD/h',
     usageTitle: 'Radni sati',
     consumptionTitle: 'Potrošnja',
-    usageHint: 'Potrebna su bar dva unosa sa radnim satima u izabranom periodu.',
+    usageHint: 'Upišite radne sate uz bar jedan unos u izabranom periodu.',
     deleteWarning: 'Obrisati mašinu i SVE njene troškove i podsetnike? Ovo se ne može poništiti.',
   },
 }

@@ -44,35 +44,64 @@ export function filterByRange<T extends { expense_date: string }>(list: T[], r: 
 /** Zbir iznosa; unosi bez iznosa (null) se ne računaju. */
 export const sumAmount = (list: Expense[]): number => round2(list.reduce((s, e) => s + (e.amount ?? 0), 0))
 
+const inRange = (date: string, r: Range): boolean => (r.from === null || date >= r.from) && (r.to === null || date <= r.to)
+
+export interface UsageSpan {
+  /** brojač na početku perioda */
+  from: number
+  /** najveće očitavanje u periodu */
+  to: number
+  /** pređeni km ili odrađeni radni sati */
+  used: number
+}
+
 /**
- * Korišćenje u periodu = najveće minus najmanje upisano očitavanje brojača (km ili radni sati).
- * Potrebna su bar dva različita očitavanja.
+ * Pređeno u periodu: od brojača na početku perioda do najvećeg očitavanja u periodu (km ili radni sati).
+ * Brojač na početku perioda je poslednje očitavanje pre perioda, a za prvi period početna vrednost brojača vozila:
+ * vozilo je dodato kad je rezervoar bio pun, pa i prvo sipanje pokriva put od te tačke.
+ * Ako početne tačke nema (početna vrednost je 0), potrebna su dva očitavanja u periodu.
  */
-export function usageInRange(list: Expense[]): number | null {
-  const readings = list.map((e) => e.odometer).filter((o): o is number => o !== null)
-  if (readings.length < 2) return null
-  const used = round1(Math.max(...readings) - Math.min(...readings))
-  return used > 0 ? used : null
+export function usageForPeriod(vehicle: Pick<Vehicle, 'initial_odometer'>, all: Expense[], range: Range): UsageSpan | null {
+  const readings = filterByRange(all, range)
+    .map((e) => e.odometer)
+    .filter((o): o is number => o !== null)
+  if (readings.length === 0) return null
+  const to = Math.max(...readings)
+  const lowest = Math.min(...readings)
+
+  const earlier = all
+    .filter((e) => e.odometer !== null && range.from !== null && e.expense_date < range.from)
+    .map((e) => e.odometer as number)
+  const base = earlier.length > 0 ? Math.max(...earlier) : vehicle.initial_odometer > 0 ? vehicle.initial_odometer : null
+  const from = base !== null && base <= lowest ? base : lowest // početna tačka veća od očitavanja je greška u unosu
+  const used = round1(to - from)
+  return used > 0 ? { from, to, used } : null
 }
 
 export interface FuelStats {
   liters: number
-  /** km ili radni sati između prvog i poslednjeg punog sipanja */
+  /** km ili radni sati obuhvaćeni obračunom (zbir razmaka između uzastopnih punih sipanja) */
   usage: number
   /** litara na 100 km (ili na 100 sati) */
   per100: number
   /** litara po jedinici: L/km ili L/h (za viljuškare se prikazuje L/h) */
   perUnit: number
+  /** broj punih sipanja u lancu, računajući i početnu tačku ako je korišćena */
   fills: number
 }
 
 /**
- * Potrošnja metodom punog rezervoara: litri od prvog do poslednjeg punog sipanja
- * (bez prvog) podeljeni sa pređenim km (ili radnim satima) između njih.
- * Delimična sipanja između njih se računaju. Potrebna su bar dva puna sipanja sa očitavanjem brojača.
+ * Potrošnja metodom punog rezervoara. Razmak između dva uzastopna puna sipanja daje jedan obračun:
+ * litri svih sipanja posle prethodnog punog (uključujući i to zadnje) podeljeni sa pređenim km (ili radnim satima).
+ * U period ulaze obračuni čije je zatvarajuće (puno) sipanje u tom periodu, pa prvi obračun u periodu
+ * koristi poslednje puno sipanje pre perioda.
+ *
+ * `start` je brojač vozila kad je rezervoar bio pun (početna kilometraža). Tako potrošnja može da se izračuna
+ * već posle prvog punog sipanja. Bez njega potrebna su bar dva puna sipanja sa očitavanjem brojača.
+ * Delimična sipanja pre prvog punog se ne računaju, a ona posle poslednjeg punog čekaju sledeće puno.
  */
-export function fuelStats(list: Expense[]): FuelStats | null {
-  const fuel = list
+export function fuelStats(list: Expense[], range: Range = { from: null, to: null }, start: number | null = null): FuelStats | null {
+  const points = list
     .filter((e) => e.category === 'gorivo' && e.odometer !== null && e.liters !== null)
     .sort(
       (a, b) =>
@@ -80,18 +109,33 @@ export function fuelStats(list: Expense[]): FuelStats | null {
         a.expense_date.localeCompare(b.expense_date) ||
         a.created_at.localeCompare(b.created_at),
     )
-  const full: number[] = []
-  fuel.forEach((e, i) => {
-    if (e.full_tank === true) full.push(i)
-  })
-  if (full.length < 2) return null
-  const first = full[0]
-  const last = full[full.length - 1]
-  const usage = round1((fuel[last].odometer as number) - (fuel[first].odometer as number))
-  if (usage <= 0) return null
+    .map((e) => ({ odometer: e.odometer as number, liters: e.liters as number, full: e.full_tank === true, date: e.expense_date as string | null }))
+  if (start !== null && (points.length === 0 || start <= points[0].odometer)) {
+    points.unshift({ odometer: start, liters: 0, full: true, date: null })
+  }
+
+  let ref: (typeof points)[number] | null = null
+  let pending = 0
   let liters = 0
-  for (let i = first + 1; i <= last; i++) liters += fuel[i].liters as number
-  return { liters: round2(liters), usage, per100: (liters / usage) * 100, perUnit: liters / usage, fills: full.length }
+  let usage = 0
+  let closing = 0
+  for (const p of points) {
+    if (ref !== null) pending += p.liters
+    if (!p.full) continue
+    if (ref !== null) {
+      const km = round1(p.odometer - ref.odometer)
+      if (km > 0 && p.date !== null && inRange(p.date, range)) {
+        liters += pending
+        usage += km
+        closing++
+      }
+    }
+    ref = p
+    pending = 0
+  }
+  if (closing === 0) return null
+  usage = round1(usage)
+  return { liters: round2(liters), usage, per100: (liters / usage) * 100, perUnit: liters / usage, fills: closing + 1 }
 }
 
 export interface Amortization {
@@ -134,6 +178,8 @@ export interface Summary {
   total: number // troškovi (+ amortizacija ako je uključena)
   /** pređeni km ili odrađeni radni sati u periodu */
   usage: number | null
+  /** od kog do kog stanja brojača se računa pređeno */
+  usageSpan: UsageSpan | null
   /** RSD po km (ili RSD po satu za mašine) */
   costPerUnit: number | null
   /** prosečno korišćenje mesečno (km ili sati) */
@@ -155,7 +201,8 @@ export function summarize(
   const expensesTotal = sumAmount(list)
   const amort = amortization(vehicle, range, now)
   const total = round2(expensesTotal + (opts.includeAmort && amort ? amort.amount : 0))
-  const usage = usageInRange(list)
+  const usageSpan = usageForPeriod(vehicle, all, range)
+  const usage = usageSpan?.used ?? null
   const months = monthsSpanned(list, range, now)
   return {
     range,
@@ -166,9 +213,11 @@ export function summarize(
     amort,
     total,
     usage,
+    usageSpan,
     costPerUnit: usage ? total / usage : null,
     usagePerMonth: usage ? usage / months : null,
-    fuel: fuelStats(list),
+    // ceo spisak: prvi obračun u periodu se oslanja na poslednje puno sipanje pre perioda (ili na početnu kilometražu)
+    fuel: fuelStats(all, range, vehicle.initial_odometer > 0 ? vehicle.initial_odometer : null),
     months,
     monthlyAvg: total / months,
   }
