@@ -47,6 +47,9 @@ export function Pregled({
   const priceAge = currentPrice ? diffDays(today, currentPrice.valid_from) : null
   const fuelWithoutPrice = useMemo(() => expenses.filter((e) => e.category === 'gorivo' && e.amount === null).length, [expenses])
   const periodLabel = PERIODS.find((p) => p.id === period)?.label.toLowerCase()
+  // bez početne vrednosti brojača ne zna se odakle je krenulo prvo sipanje
+  const noStart = vehicle.initial_odometer <= 0
+  const startHint = `Upišite i ${copy.initialMeter.toLowerCase()} (${copy.manage} → Izmeni), pa se računa već od prvog sipanja.`
 
   const costText = summary.costPerUnit !== null ? formatNumber(summary.costPerUnit, 2) : '––,––'
   const fuel = summary.fuel
@@ -133,7 +136,12 @@ export function Pregled({
           <Odometar text={costText} label={summary.costPerUnit !== null ? `${costText} ${copy.costUnit}` : 'Nema podataka'} />
           <span className="hero-unit">{copy.costUnit}</span>
         </div>
-        {summary.costPerUnit === null && !loading && <p className="hero-hint">{copy.usageHint}</p>}
+        {summary.costPerUnit === null && !loading && (
+          <p className="hero-hint">
+            {copy.usageHint}
+            {noStart && ` ${startHint}`}
+          </p>
+        )}
         {summary.amort ? (
           <label className="hero-toggle">
             <input type="checkbox" checked={includeAmort} onChange={(e) => onIncludeAmort(e.target.checked)} />
@@ -164,7 +172,11 @@ export function Pregled({
           <p className="kpi-label">{copy.usageTitle}</p>
           <p className="kpi-value">{summary.usage !== null ? formatMeter(summary.usage, unit) : '—'}</p>
           <p className="kpi-sub">
-            {summary.usagePerMonth !== null ? `≈ ${formatMeter(summary.usagePerMonth, unit)} mesečno` : 'Potrebna su 2 unosa sa očitavanjem'}
+            {summary.usageSpan && summary.usagePerMonth !== null
+              ? `od ${formatMeter(summary.usageSpan.from, unit, true)} do ${formatMeter(summary.usageSpan.to, unit, true)} · ≈ ${formatMeter(summary.usagePerMonth, unit)} mesečno`
+              : noStart
+                ? 'Potrebna su 2 unosa sa očitavanjem'
+                : 'Potreban je 1 unos sa očitavanjem'}
           </p>
         </div>
         <div className="kpi">
@@ -173,7 +185,11 @@ export function Pregled({
           </p>
           <p className="kpi-value">{fuel ? formatNumber(unit === 'h' ? fuel.perUnit : fuel.per100, unit === 'h' ? 2 : 1) : '—'}</p>
           <p className="kpi-sub">
-            {fuel ? `${formatNumber(fuel.liters, 0)} ${fuelUnit} na ${formatMeter(fuel.usage, unit)}` : 'Potrebna su 2 puna sipanja'}
+            {fuel
+              ? `${formatNumber(fuel.liters, 0)} ${fuelUnit} na ${formatMeter(fuel.usage, unit)}`
+              : noStart
+                ? 'Potrebna su 2 puna sipanja'
+                : 'Potrebno je 1 puno sipanje'}
           </p>
         </div>
         <div className="kpi">

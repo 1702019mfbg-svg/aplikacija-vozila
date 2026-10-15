@@ -177,6 +177,7 @@ export function VehicleForm({ section, initial, onSaved, onDeleted, onClose }: F
           value={initialMeter}
           onChange={(e) => setInitialMeter(e.target.value)}
           error={errors.initialMeter}
+          hint="Stanje kad je rezervoar bio pun, pre prvog upisanog sipanja."
         />
       </div>
 
