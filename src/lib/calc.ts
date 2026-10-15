@@ -1,6 +1,6 @@
 import { addDays, addYears, daysInMonth, diffDays, monthIndex, monthKey, parseISO, toISO } from './dates'
 import { MONTHS_SHORT, todayISO } from './format'
-import type { Category, Expense, Vehicle } from './types'
+import type { Category, Expense, FuelPrice, FuelType, Vehicle } from './types'
 
 export type Period = 'mesec' | 'godina' | '12m' | 'sve'
 export const PERIODS: { id: Period; label: string }[] = [
@@ -227,4 +227,34 @@ export function byCategory(list: Expense[]): CategoryShare[] {
 /** Poslednja poznata vrednost brojača vozila (km ili radni sati). */
 export function latestOdometer(vehicle: Vehicle, list: Expense[]): number {
   return list.reduce((max, e) => (e.odometer !== null && e.odometer > max ? e.odometer : max), vehicle.initial_odometer)
+}
+
+/** Cena goriva koja je važila na dati dan: poslednja upisana cena čiji "važi od" nije kasniji od tog dana. */
+export function priceFor(prices: FuelPrice[], fuel: FuelType, date: string): FuelPrice | null {
+  let best: FuelPrice | null = null
+  for (const p of prices) {
+    if (p.fuel_type === fuel && p.valid_from <= date && (best === null || p.valid_from > best.valid_from)) best = p
+  }
+  return best
+}
+
+/**
+ * Sipanja bez upisanog iznosa dobijaju obračunat iznos: litri x cena goriva na dan sipanja.
+ * Upisan iznos uvek ima prednost. Ako za taj dan nema cene, iznos ostaje prazan.
+ * Ne menja ulaznu listu; obračunati unosi dobijaju oznaku `calc`.
+ */
+export function applyFuelPrices(list: Expense[], fuel: FuelType, prices: FuelPrice[]): Expense[] {
+  if (prices.length === 0) return list
+  return list.map((e) => {
+    if (e.category !== 'gorivo' || e.amount !== null || e.liters === null) return e
+    const p = priceFor(prices, fuel, e.expense_date)
+    return p ? { ...e, amount: round2(e.liters * p.price), calc: { price: p.price, from: p.valid_from } } : e
+  })
+}
+
+/** Cena po litru (ili po kWh) za jedno sipanje: obračunata cena, ili iznos / količina ako je iznos upisan. */
+export function unitPrice(e: Expense): number | null {
+  if (e.category !== 'gorivo' || e.liters === null || e.liters <= 0) return null
+  if (e.calc) return e.calc.price
+  return e.amount !== null ? round2(e.amount / e.liters) : null
 }

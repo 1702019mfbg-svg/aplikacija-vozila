@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '../components/Icon'
-import { PERIODS, filterByRange, periodRange, sumAmount, type Period } from '../lib/calc'
+import { PERIODS, filterByRange, periodRange, sumAmount, unitPrice, type Period } from '../lib/calc'
 import { buildCsv, csvFilename, downloadCsv } from '../lib/csv'
 import { MONTHS_LONG, formatDate, formatMeter, formatNumber, formatRSD, plural } from '../lib/format'
 import { categoriesFor, sectionOf } from '../lib/sections'
@@ -112,6 +112,7 @@ export function Unosi({ vehicle, expenses, loading, period, onPeriod, pendingOnl
                           formatDate(e.expense_date),
                           e.odometer !== null ? formatMeter(e.odometer, unit) : null,
                           e.liters !== null ? `${formatNumber(e.liters, 1)} ${fuelUnit}${e.full_tank ? ' (pun)' : ''}` : null,
+                          unitPrice(e) !== null ? `${formatNumber(unitPrice(e) as number, 2)} RSD/${fuelUnit}` : null,
                           e.driver_name ? `Uneo: ${e.driver_name}` : null,
                         ]
                           .filter(Boolean)
@@ -119,7 +120,10 @@ export function Unosi({ vehicle, expenses, loading, period, onPeriod, pendingOnl
                       </span>
                     </span>
                     {e.amount !== null ? (
-                      <span className="row-amount">{formatNumber(e.amount, 2)}</span>
+                      <span className="row-amount">
+                        {formatNumber(e.amount, 2)}
+                        {e.calc && <small className="row-calc">obračun</small>}
+                      </span>
                     ) : (
                       <span className="badge badge--soon">bez iznosa</span>
                     )}

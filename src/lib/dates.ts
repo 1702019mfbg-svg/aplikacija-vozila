@@ -43,3 +43,10 @@ export function addDays(iso: string, days: number): string {
   const dt = new Date(Date.UTC(y, m - 1, d + days))
   return toISO(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate())
 }
+
+/** Ponedeljak u nedelji kojoj datum pripada (nedelja počinje ponedeljkom). */
+export function startOfWeek(iso: string): string {
+  const { y, m, d } = parseISO(iso)
+  const sinceMonday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
+  return addDays(iso, -sinceMonday)
+}
