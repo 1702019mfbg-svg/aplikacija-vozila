@@ -1420,3 +1420,55 @@ input[type='checkbox'] {
     right: max(28px, calc((100vw - 980px) / 2));
   }
 }
+
+/* ---------- potrošnja po sipanjima ---------- */
+.fuel-table-wrap {
+  overflow-x: auto;
+}
+.fuel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.fuel-table th {
+  padding: 0 4px 8px;
+  color: var(--eyebrow);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.fuel-table td {
+  padding: 10px 4px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  white-space: nowrap;
+}
+.fuel-table th:first-child,
+.fuel-table td:first-child {
+  padding-left: 0;
+}
+.fuel-table th:last-child,
+.fuel-table td:last-child {
+  padding-right: 0;
+}
+.fuel-table .num {
+  text-align: right;
+}
+.fuel-table small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.fuel-table strong {
+  font-weight: 700;
+}
+.fuel-high td {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+.fuel-high strong {
+  color: var(--warn-ink);
+}

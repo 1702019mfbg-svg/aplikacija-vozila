@@ -160,6 +160,7 @@ Pravila:
 - **Cena po km (ili po satu)** = zbir troškova u periodu / pređeni km (ili odrađeni sati). Pređeno = od stanja brojača na početku perioda do najvećeg upisanog u periodu. Stanje na početku perioda je poslednje očitavanje pre perioda, a za prvi period **početna kilometraža** vozila (odnosno početni radni sati). Na Pregledu piše „od … do …“, pa se vidi tačno šta je uračunato.
 - **Početna kilometraža** je stanje brojača kad je rezervoar bio **pun**, pre prvog upisanog sipanja. Zato se i cena po km i potrošnja računaju **već posle prvog sipanja**: prvo sipanje pokriva put od početne kilometraže. Proverite je kod svakog vozila (**Vozila → Izmeni**). Ako je ostala 0, aplikacija ne zna odakle je krenulo i čeka drugo sipanje.
 - **Potrošnja** po metodi punog rezervoara: razmak između dva uzastopna *puna* sipanja (prvo „puno“ je početna kilometraža) daje litre podeljene sa pređenim km (L/100 km) odnosno satima (L/h). Delimična sipanja između se računaju u sledeće puno. Zato je važna kvačica **Pun rezervoar**. U period ulaze razmaci čije je puno sipanje u tom periodu.
+- **Potrošnja po sipanjima** (tabela na Pregledu): za svako sipanje u izabranom periodu datum, stanje brojača, pređeno od prethodnog punog sipanja, litri, potrošnja (L/100 km, kod mašina L/h) i cena goriva po km (po satu). Delimično sipanje nema svoju potrošnju, već se računa zajedno sa sledećim punim („+1 delim.“). Kad ima bar tri izračunata sipanja, ▲ i žuta boja označavaju sipanje sa potrošnjom bar 15% većom od proseka, pa se odmah vidi ako nešto ne valja.
 - **Mesečni prosek** = ukupno / broj meseci obuhvaćenih periodom.
 - **Amortizacija** (opciono, po vozilu): nabavna cena se ravnomerno raspoređuje po danima na izabrani broj godina. Prikazuje se posebno, a kvačicom „Uračunaj amortizaciju“ ulazi u cenu po km.
 - Periodi: **Mesec** (tekući), **Godina** (tekuća), **12 meseci**, **Sve**.
@@ -222,7 +223,7 @@ Stack: React 19 + Vite + TypeScript, Supabase (Auth + Postgres + RLS), PWA (`vit
 npm install
 npm run dev          # sa pravim Supabase-om (.env.local prema .env.example)
 npm run dev:demo     # probna verzija sa podacima u memoriji (bez Supabase-a)
-npm test             # 151 test: proračuni, bezbednost baze i održavanje budnim
+npm test             # 156 testova: proračuni, bezbednost baze i održavanje budnim
 npm run build        # provera tipova + produkcioni build
 ```
 

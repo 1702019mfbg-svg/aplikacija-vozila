@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  amortization, byCategory, filterByRange, fuelStats, usageForPeriod, latestOdometer, monthlySeries, monthsSpanned,
+  amortization, byCategory, filterByRange, fuelRows, fuelStats, usageForPeriod, latestOdometer, monthlySeries, monthsSpanned,
   periodRange, sumAmount, summarize, priceFor, applyFuelPrices, unitPrice,
 } from '../src/lib/calc'
 import { buildCsv, csvFilename } from '../src/lib/csv'
@@ -206,6 +206,59 @@ describe('potrošnja metodom punog rezervoara', () => {
     expect(s.usage).toBe(500)
     // kad u periodu nema punog sipanja, nema ni obračuna
     expect(fuelStats([fill(100500, 50, true, { expense_date: '2026-09-25' })], periodRange('mesec', NOW), 100000)).toBeNull()
+  })
+})
+
+describe('potrošnja posle svakog sipanja', () => {
+  it('svako puno sipanje dobija svoju potrošnju i cenu goriva po km', () => {
+    // pun na 100.000; 100.900 puno 180 L (40.320 RSD); 101.200 delimično 50 L; 101.800 puno 130 L (29.120 RSD)
+    const rows = fuelRows(
+      [
+        fill(100900, 180, true, { amount: 40320 }),
+        fill(101200, 50, false, { amount: 11200 }),
+        fill(101800, 130, true, { amount: 29120 }),
+      ],
+      100000,
+    )
+    expect(rows.map((r) => r.status)).toEqual(['ok', 'partial', 'ok'])
+    expect(rows[0]).toMatchObject({ distance: 900, liters: 180, partials: 0, cost: 40320 })
+    expect(rows[0].per100).toBeCloseTo(20, 10)
+    expect(rows[0].costPerUnit).toBeCloseTo(44.8, 10)
+    // delimično ulazi u sledeće puno: 50 + 130 L na 900 km
+    expect(rows[2]).toMatchObject({ distance: 900, liters: 180, partials: 1, cost: 40320 })
+  })
+
+  it('bez početne kilometraže prvo puno sipanje je samo početak', () => {
+    const rows = fuelRows([fill(1000, 50, false), fill(1100, 50, true), fill(1600, 40, true)])
+    expect(rows.map((r) => r.status)).toEqual(['first', 'first', 'ok'])
+    expect(rows[2]).toMatchObject({ distance: 500, liters: 40 })
+  })
+
+  it('bez kilometraže, ili sa kilometražom koja nije veća od prethodne, nema potrošnje', () => {
+    const rows = fuelRows([fill(1000, 50, true), fill(1000, 40, true), exp({ category: 'gorivo', liters: 30, full_tank: true })], 900)
+    const byStatus = rows.map((r) => r.status).sort()
+    expect(byStatus).toEqual(['bad_meter', 'no_meter', 'ok'])
+  })
+
+  it('kad nekom sipanju nedostaje iznos, cena po km se ne računa, a potrošnja da', () => {
+    const rows = fuelRows([fill(1300, 10, false, { amount: null }), fill(1500, 40, true, { amount: 8000 })], 1000)
+    expect(rows[1].cost).toBeNull()
+    expect(rows[1].costPerUnit).toBeNull()
+    expect(rows[1].per100).toBeCloseTo(10, 10)
+  })
+
+  it('pregled daje sipanja iz perioda, najnovija prva, i zbir iz istih redova', () => {
+    const v = { ...vehicle, initial_odometer: 300000 }
+    const list = [
+      fill(300900, 178, true, { expense_date: '2026-09-28', amount: 40000 }),
+      fill(301799, 173, true, { expense_date: '2026-10-02', amount: 40054 }),
+      fill(302700, 175, true, { expense_date: '2026-10-04', amount: 40100 }),
+    ]
+    const s = summarize(v, list, 'mesec', { includeAmort: false, now: NOW })
+    expect(s.fuelLog.map((r) => r.expense.odometer)).toEqual([302700, 301799])
+    expect(s.fuelLog[1].distance).toBe(899) // od septembarskog punog sipanja
+    expect(s.fuel!.liters).toBe(348)
+    expect(s.fuel!.usage).toBe(1800)
   })
 })
 
