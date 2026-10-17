@@ -101,41 +101,111 @@ export interface FuelStats {
  * Delimična sipanja pre prvog punog se ne računaju, a ona posle poslednjeg punog čekaju sledeće puno.
  */
 export function fuelStats(list: Expense[], range: Range = { from: null, to: null }, start: number | null = null): FuelStats | null {
-  const points = list
-    .filter((e) => e.category === 'gorivo' && e.odometer !== null && e.liters !== null)
+  return statsFromRows(fuelRows(list, start).filter((r) => inRange(r.expense.expense_date, range)))
+}
+
+/** Stanje jednog sipanja u tabeli potrošnje. */
+export type FuelRowStatus =
+  | 'ok' // puno sipanje: potrošnja od prethodnog punog
+  | 'partial' // delimično: računa se zajedno sa sledećim punim
+  | 'first' // pre prvog punog sipanja (i bez početne kilometraže): ne zna se odakle je krenulo
+  | 'no_meter' // bez kilometraže (radnih sati)
+  | 'bad_meter' // brojač nije veći od prethodnog punog sipanja
+
+export interface FuelRow {
+  expense: Expense
+  status: FuelRowStatus
+  /** km ili radni sati od prethodnog punog sipanja (ili od početne kilometraže) */
+  distance: number | null
+  /** litri tog razmaka: ovo sipanje i delimična sipanja pre njega */
+  liters: number | null
+  /** koliko je delimičnih sipanja uračunato */
+  partials: number
+  /** litara na 100 km (ili na 100 sati) */
+  per100: number | null
+  /** litara po km ili po satu */
+  perUnit: number | null
+  /** trošak goriva u razmaku (null ako nekom sipanju nedostaje iznos) */
+  cost: number | null
+  /** RSD po km (ili po satu), samo za gorivo */
+  costPerUnit: number | null
+}
+
+/**
+ * Potrošnja posle svakog sipanja, metodom punog rezervoara: svako puno sipanje zatvara razmak od prethodnog
+ * punog (prvi razmak počinje od početne kilometraže `start`, kad je rezervoar bio pun). Redosled je po stanju brojača.
+ */
+export function fuelRows(list: Expense[], start: number | null = null): FuelRow[] {
+  const empty = { distance: null, liters: null, partials: 0, per100: null, perUnit: null, cost: null, costPerUnit: null }
+  const fuel = list.filter((e) => e.category === 'gorivo' && e.liters !== null)
+  const metered = fuel
+    .filter((e) => e.odometer !== null)
     .sort(
       (a, b) =>
         (a.odometer as number) - (b.odometer as number) ||
         a.expense_date.localeCompare(b.expense_date) ||
         a.created_at.localeCompare(b.created_at),
     )
-    .map((e) => ({ odometer: e.odometer as number, liters: e.liters as number, full: e.full_tank === true, date: e.expense_date as string | null }))
-  if (start !== null && (points.length === 0 || start <= points[0].odometer)) {
-    points.unshift({ odometer: start, liters: 0, full: true, date: null })
-  }
+  const rows: FuelRow[] = fuel.filter((e) => e.odometer === null).map((e) => ({ expense: e, status: 'no_meter', ...empty }))
 
-  let ref: (typeof points)[number] | null = null
-  let pending = 0
+  let ref = start !== null && (metered.length === 0 || start <= (metered[0].odometer as number)) ? start : null
   let liters = 0
-  let usage = 0
-  let closing = 0
-  for (const p of points) {
-    if (ref !== null) pending += p.liters
-    if (!p.full) continue
-    if (ref !== null) {
-      const km = round1(p.odometer - ref.odometer)
-      if (km > 0 && p.date !== null && inRange(p.date, range)) {
-        liters += pending
-        usage += km
-        closing++
-      }
+  let cost: number | null = 0
+  let partials = 0
+  for (const e of metered) {
+    const odometer = e.odometer as number
+    if (ref === null) {
+      rows.push({ expense: e, status: 'first', ...empty })
+      if (e.full_tank === true) ref = odometer
+      continue
     }
-    ref = p
-    pending = 0
+    liters += e.liters as number
+    cost = cost !== null && e.amount !== null ? cost + e.amount : null
+    if (e.full_tank !== true) {
+      partials++
+      rows.push({ expense: e, status: 'partial', ...empty })
+      continue
+    }
+    const distance = round1(odometer - ref)
+    if (distance > 0) {
+      rows.push({
+        expense: e,
+        status: 'ok',
+        distance,
+        liters: round2(liters),
+        partials,
+        per100: (liters / distance) * 100,
+        perUnit: liters / distance,
+        cost: cost !== null ? round2(cost) : null,
+        costPerUnit: cost !== null ? cost / distance : null,
+      })
+    } else {
+      rows.push({ expense: e, status: 'bad_meter', ...empty })
+    }
+    ref = odometer
+    liters = 0
+    cost = 0
+    partials = 0
   }
-  if (closing === 0) return null
-  usage = round1(usage)
-  return { liters: round2(liters), usage, per100: (liters / usage) * 100, perUnit: liters / usage, fills: closing + 1 }
+  return rows
+}
+
+/** Zbirna potrošnja iz razmaka koji su izračunati (status "ok"). */
+function statsFromRows(rows: FuelRow[]): FuelStats | null {
+  const ok = rows.filter((r) => r.status === 'ok')
+  if (ok.length === 0) return null
+  const liters = ok.reduce((s, r) => s + (r.liters as number), 0)
+  const usage = round1(ok.reduce((s, r) => s + (r.distance as number), 0))
+  return { liters: round2(liters), usage, per100: (liters / usage) * 100, perUnit: liters / usage, fills: ok.length + 1 }
+}
+
+/** Najnovija sipanja prva: po datumu, pa po stanju brojača. */
+export function newestFirst(a: FuelRow, b: FuelRow): number {
+  return (
+    b.expense.expense_date.localeCompare(a.expense.expense_date) ||
+    (b.expense.odometer ?? -1) - (a.expense.odometer ?? -1) ||
+    b.expense.created_at.localeCompare(a.expense.created_at)
+  )
 }
 
 export interface Amortization {
@@ -185,6 +255,8 @@ export interface Summary {
   /** prosečno korišćenje mesečno (km ili sati) */
   usagePerMonth: number | null
   fuel: FuelStats | null
+  /** sipanja u periodu sa potrošnjom posle svakog, najnovija prva */
+  fuelLog: FuelRow[]
   months: number
   monthlyAvg: number
 }
@@ -204,6 +276,10 @@ export function summarize(
   const usageSpan = usageForPeriod(vehicle, all, range)
   const usage = usageSpan?.used ?? null
   const months = monthsSpanned(list, range, now)
+  // ceo spisak: prvo sipanje u periodu se oslanja na poslednje puno sipanje pre perioda (ili na početnu kilometražu)
+  const fuelLog = fuelRows(all, vehicle.initial_odometer > 0 ? vehicle.initial_odometer : null)
+    .filter((r) => inRange(r.expense.expense_date, range))
+    .sort(newestFirst)
   return {
     range,
     list,
@@ -216,8 +292,8 @@ export function summarize(
     usageSpan,
     costPerUnit: usage ? total / usage : null,
     usagePerMonth: usage ? usage / months : null,
-    // ceo spisak: prvi obračun u periodu se oslanja na poslednje puno sipanje pre perioda (ili na početnu kilometražu)
-    fuel: fuelStats(all, range, vehicle.initial_odometer > 0 ? vehicle.initial_odometer : null),
+    fuel: statsFromRows(fuelLog),
+    fuelLog,
     months,
     monthlyAvg: total / months,
   }

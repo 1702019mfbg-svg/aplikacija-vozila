@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { CategoryBars, MonthlyChart } from '../components/Charts'
+import { FuelTable } from '../components/FuelTable'
 import { Icon } from '../components/Icon'
 import { Odometar } from '../components/Odometar'
 import { Status } from '../components/Status'
@@ -198,6 +199,17 @@ export function Pregled({
           <p className="kpi-sub">za {formatMonths(summary.months)}</p>
         </div>
       </div>
+
+      <section className="card" aria-labelledby="fuel-log-title">
+        <h2 className="card-title" id="fuel-log-title">
+          Potrošnja po sipanjima
+        </h2>
+        <p className="card-sub">
+          Izabrani period: {periodLabel}
+          {fuel && ` · prosek ${formatNumber(unit === 'h' ? fuel.perUnit : fuel.per100, unit === 'h' ? 2 : 1)} ${consumptionUnit(unit, fuelUnit)}`}
+        </p>
+        <FuelTable rows={summary.fuelLog} unit={unit} fuelUnit={fuelUnit} average={fuel ? (unit === 'h' ? fuel.perUnit : fuel.per100) : null} />
+      </section>
 
       <section className="card">
         <h2 className="card-title">Troškovi po mesecima</h2>
